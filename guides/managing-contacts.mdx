@@ -1,0 +1,335 @@
+---
+title: "Managing Contacts at Scale"
+description: "Strategies for importing, organizing, and maintaining large contact databases"
+---
+
+As your contact database grows, you need strategies for importing, organizing, and maintaining data quality. This guide covers techniques for working with thousands of contacts.
+
+## Importing contacts
+
+### Bulk upsert
+
+The upsert endpoint is your primary tool for bulk imports:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact/upsert \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      { "primaryPhone": "+212612345678", "firstName": "Ahmed" },
+      { "primaryPhone": "+212612345679", "firstName": "Fatima" }
+    ]
+  }'
+```
+
+Key behaviors:
+
+- **New contacts** (phone not found) → Created
+- **Existing contacts** (phone matches) → Updated
+- **Matching** is by `primaryPhone` within your organization
+
+### Batch size
+
+For large imports, batch your requests:
+
+- **Recommended batch size**: 100-500 contacts per request
+- **Maximum**: 1000 contacts per request (varies by plan)
+- **Rate limiting**: 10 requests per second
+
+Example batching logic:
+
+```javascript
+const contacts = [...]; // Your full list
+const batchSize = 500;
+
+for (let i = 0; i < contacts.length; i += batchSize) {
+  const batch = contacts.slice(i, i + batchSize);
+  await fetch('/contact/upsert', {
+    method: 'POST',
+    body: JSON.stringify({ data: batch })
+  });
+  await sleep(100); // Small delay between batches
+}
+```
+
+### Preparing your data
+
+Before importing:
+
+1. **Normalize phone numbers** - Use E.164 format when possible
+2. **Remove duplicates** - Same phone = same contact in Gomobile
+3. **Validate required fields** - At minimum, `primaryPhone`
+4. **Map your fields** - Match your data to Gomobile fields
+5. **Define custom attributes first** - Create them before importing data that uses them
+
+### Field mapping
+
+Map your source data to Gomobile fields:
+
+| Your field | Gomobile field                              |
+| ---------- | ------------------------------------------- |
+| mobile     | primaryPhone                                |
+| name       | fullName (or split into firstName/lastName) |
+| mail       | primaryEmail                                |
+| balance    | customAttributes.account_balance            |
+
+## Organizing with audiences
+
+### Audience strategies
+
+**By campaign type:**
+
+- Payment Reminders Q1
+- New Customer Welcome
+- Feedback Survey March
+
+**By customer segment:**
+
+- Premium Customers
+- Standard Customers
+- Trial Users
+
+**By geography:**
+
+- Casablanca Region
+- Rabat Region
+- Southern Morocco
+
+**By engagement level:**
+
+- Active (last 30 days)
+- At Risk (60-90 days)
+- Inactive (90+ days)
+
+### Dynamic segmentation
+
+While Gomobile doesn't have automatic segmentation, you can simulate it:
+
+1. Export contacts with specific criteria from your CRM
+2. Create or update audience in Gomobile
+3. Add matching contacts to the audience
+4. Run campaigns against the audience
+5. Repeat periodically to refresh
+
+### Audience refresh workflow
+
+```bash
+# 1. Create fresh audience
+curl -X POST /audience -d '{"name": "High Balance Customers - Jan 2025"}'
+
+# 2. Query your CRM for matching contacts
+# (external to Gomobile)
+
+# 3. Upsert contacts to Gomobile
+curl -X POST /contact/upsert -d '{"data": [your-contacts]}'
+
+# 4. Add to audience
+curl -X POST /audience/AUDIENCE_ID/add-contacts -d '{"contacts": [contact-ids]}'
+```
+
+## Maintaining data quality
+
+### Regular cleanup tasks
+
+**Weekly:**
+
+- Remove bounced/invalid phone numbers
+- Update changed contact information
+- Merge duplicates
+
+**Monthly:**
+
+- Review contact engagement metrics
+- Archive inactive contacts
+- Validate custom attribute values
+
+### Handling duplicates
+
+Duplicates usually happen when phone formats differ:
+
+```
++212612345678  ← E.164
+0612345678     ← Local
+212612345678   ← Without +
+```
+
+Prevention:
+
+- Normalize phone formats before import
+- Use consistent format throughout
+
+Resolution:
+
+- Export contacts with similar phones
+- Decide which to keep
+- Delete duplicates (soft delete preserves history)
+- Update references if needed
+
+### Invalid phone numbers
+
+Signs of invalid numbers:
+
+- Calls immediately fail
+- "Number not in service" errors
+- Consistent "no answer" across all attempts
+
+Handling:
+
+- Flag contacts with repeated failures
+- Review and remove invalid numbers
+- Consider verification services for new data
+
+## Custom attributes at scale
+
+### Defining a schema
+
+Plan your custom attributes before importing:
+
+```bash
+# Create attributes first
+curl -X POST /custom-attributes -d '{"displayName": "Account Balance", "type": "number"}'
+curl -X POST /custom-attributes -d '{"displayName": "Subscription Tier", "type": "text"}'
+curl -X POST /custom-attributes -d '{"displayName": "Last Contact", "type": "date"}'
+```
+
+### Bulk updating attributes
+
+Use upsert to update attribute values in bulk:
+
+```bash
+curl -X POST /contact/upsert -d '{
+  "data": [
+    { "primaryPhone": "+212612345678", "customAttributes": { "account_balance": 1500 } },
+    { "primaryPhone": "+212612345679", "customAttributes": { "account_balance": 2300 } }
+  ]
+}'
+```
+
+Only specified attributes are updated—others remain unchanged.
+
+## Syncing with external systems
+
+### CRM integration pattern
+
+```
+┌─────────────┐     Export      ┌─────────────┐
+│    Your     │ ──────────────▶ │  Transform  │
+│     CRM     │                 │   Script    │
+└─────────────┘                 └──────┬──────┘
+                                       │
+                                       │ Upsert
+                                       ▼
+                               ┌─────────────┐
+                               │  Gomobile   │
+                               │     API     │
+                               └─────────────┘
+```
+
+Sync frequency depends on your use case:
+
+- **Real-time**: Webhook on CRM changes
+- **Hourly**: Scheduled job for active campaigns
+- **Daily**: Overnight batch for general sync
+
+### Handling deletes
+
+When contacts are deleted in your source system:
+
+1. **Option A**: Soft delete in Gomobile (preserves history)
+2. **Option B**: Remove from active audiences (keeps contact but excludes from campaigns)
+3. **Option C**: Flag with a custom attribute (e.g., `is_active: false`)
+
+## Search and filtering
+
+### Pagination best practices
+
+Always paginate large result sets:
+
+```bash
+# First page
+curl "/contact?page=1&limit=100"
+
+# Subsequent pages
+curl "/contact?page=2&limit=100"
+```
+
+Use the `meta` response to know when you're done:
+
+```json
+{
+  "meta": {
+    "page": 2,
+    "totalPages": 15,
+    "hasNextPage": true
+  }
+}
+```
+
+### Efficient searching
+
+Use specific searches instead of loading all contacts:
+
+```bash
+# Search by name
+curl "/contact?search=ahmed"
+
+# Sorted by creation date
+curl "/contact?sortBy=createdAt&sortOrder=desc"
+```
+
+## Data export
+
+For compliance or analysis, you might need to export data:
+
+1. Paginate through all contacts
+2. Collect into local storage
+3. Transform as needed
+4. Export to your format (CSV, Excel, etc.)
+
+```javascript
+async function exportAllContacts() {
+  let page = 1;
+  let allContacts = [];
+
+  while (true) {
+    const response = await fetch(`/contact?page=${page}&limit=100`);
+    const { data, meta } = await response.json();
+
+    allContacts = allContacts.concat(data);
+
+    if (!meta.hasNextPage) break;
+    page++;
+  }
+
+  return allContacts;
+}
+```
+
+## Best practices summary
+
+1. **Use upsert for imports** - Handles both create and update
+2. **Batch your requests** - 100-500 contacts per request
+3. **Normalize phone numbers** - Consistent format prevents duplicates
+4. **Define attributes first** - Create before importing data
+5. **Segment with audiences** - Don't try to filter at call time
+6. **Sync regularly** - Keep Gomobile in sync with your source systems
+7. **Monitor data quality** - Regular cleanup prevents issues
+
+## Next steps
+
+<CardGroup cols="2">
+
+<Card title="Audiences" icon="users" href="/core-concepts/audiences">
+  Grouping contacts.
+</Card>
+
+<Card title="Custom Attributes" icon="sliders" href="/features/custom-attributes">
+  Extending contact data.
+</Card>
+
+<Card title="Building Your First Campaign" icon="rocket" href="/guides/building-your-first-campaign">
+  Using your contacts.
+</Card>
+
+</CardGroup>

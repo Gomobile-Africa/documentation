@@ -1,0 +1,192 @@
+---
+title: "Contacts"
+description: "The people you call - the foundation of every campaign"
+---
+
+Contacts are the people you call. They're the foundation of every campaign—you can't make calls without them.
+
+## What contacts store
+
+At minimum, a contact needs a phone number. Beyond that, you can store as much or as little information as you need:
+
+| Field              | Required | Description                            |
+| ------------------ | -------- | -------------------------------------- |
+| `primaryPhone`     | Yes      | The phone number to call               |
+| `firstName`        | No       | First name                             |
+| `lastName`         | No       | Last name                              |
+| `fullName`         | No       | Full name (if you prefer not to split) |
+| `primaryEmail`     | No       | Email address                          |
+| `address`          | No       | Street address                         |
+| `city`             | No       | City                                   |
+| `state`            | No       | State or region                        |
+| `zip`              | No       | Postal code                            |
+| `occupation`       | No       | Job title or occupation                |
+| `preferredChannel` | No       | How they prefer to be contacted        |
+| `gender`           | No       | `male` or `female`                     |
+| `customAttributes` | No       | Any additional data you need           |
+
+## Creating contacts
+
+Add a single contact:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "firstName": "Fatima",
+    "lastName": "Benali",
+    "primaryPhone": "+212612345678",
+    "city": "Casablanca",
+    "customAttributes": {
+      "accountBalance": 1500,
+      "preferredLanguage": "ar"
+    }
+  }'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "firstName": "Fatima",
+  "lastName": "Benali",
+  "primaryPhone": "+212612345678",
+  "city": "Casablanca",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+## Bulk importing contacts
+
+For larger datasets, use the upsert endpoint. It creates new contacts and updates existing ones (matched by phone number):
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact/upsert \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {
+        "firstName": "Fatima",
+        "lastName": "Benali",
+        "primaryPhone": "+212612345678"
+      },
+      {
+        "firstName": "Ahmed",
+        "lastName": "Tazi",
+        "primaryPhone": "+212612345679"
+      },
+      {
+        "firstName": "Sara",
+        "lastName": "Alami",
+        "primaryPhone": "+212612345680"
+      }
+    ]
+  }'
+```
+
+This is the recommended way to sync contacts from external systems.
+
+## Searching and filtering
+
+List contacts with pagination and search:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/contact?page=1&limit=20&search=fatima&sortBy=createdAt&sortOrder=desc" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Searchable fields: `firstName`, `lastName`, `fullName`, `primaryPhone`, `primaryEmail`
+
+Sortable fields: `firstName`, `lastName`, `primaryPhone`, `primaryEmail`, `createdAt`
+
+## Updating contacts
+
+Update specific fields without affecting others:
+
+```bash
+curl -X PUT https://api.gomobile.ma/api/contact/CONTACT_ID \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "city": "Rabat",
+    "customAttributes": {
+      "accountBalance": 2000
+    }
+  }'
+```
+
+## Custom attributes
+
+Standard fields don't cover every use case. Custom attributes let you store any additional data:
+
+```json
+{
+  "customAttributes": {
+    "accountBalance": 1500,
+    "subscriptionTier": "premium",
+    "lastPaymentDate": "2025-01-01",
+    "preferredLanguage": "ar",
+    "region": "north"
+  }
+}
+```
+
+You can reference custom attributes in your call flows to personalize messages. For example, play back the `accountBalance` value during a payment reminder call.
+
+Before using custom attributes, define them at the organization level. See [Custom Attributes](/features/custom-attributes) for details.
+
+## Phone number format
+
+Gomobile accepts phone numbers in various formats, but we recommend E.164 format for consistency:
+
+```
++212612345678  ✓ Recommended (E.164)
+0612345678     ✓ Works (local format)
+212612345678   ✓ Works
+```
+
+Numbers are stored as provided. Make sure your DID pool numbers and contact numbers use consistent formats for proper caller ID display.
+
+## Deleting contacts
+
+Contacts are soft-deleted, meaning they're hidden but not permanently removed:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/contact/CONTACT_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Soft deletion preserves historical data for reporting. Contact support if you need to permanently remove data for compliance reasons.
+
+## Best practices
+
+- **Use consistent phone formats** - Stick to E.164 when possible
+- **Keep data clean** - Regularly deduplicate and update stale records
+- **Use custom attributes wisely** - Define them before importing data
+- **Segment with audiences** - Don't try to filter contacts at call time
+
+## Related concepts
+
+<CardGroup cols="2">
+
+<Card title="Audiences" icon="users" href="/core-concepts/audiences">
+  Grouping contacts for campaigns.
+</Card>
+
+<Card
+  title="Custom Attributes"
+  icon="sliders"
+  href="/features/custom-attributes"
+>
+  Defining additional fields.
+</Card>
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Using contacts in campaigns.
+</Card>
+
+</CardGroup>

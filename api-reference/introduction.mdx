@@ -1,33 +1,160 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API Reference"
+description: "Complete API documentation for Gomobile"
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+Welcome to the Gomobile API Reference. This documentation covers all available endpoints for building communication campaigns.
 
-## Welcome
+## Base URL
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+All API requests should be made to:
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+```
+https://api.gomobile.ma/api
+```
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+All API requests require authentication using an API key. Include your key in the `x-api-key` header of every request:
+
+```
+x-api-key: YOUR_API_KEY
+```
+
+<Info>
+  **Need an API key?** [Request your API
+  key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE)
+  and our team will set you up within 24 hours.
+</Info>
+
+## Making requests
+
+Here's an example of an authenticated request:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/users/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Response format
+
+All responses are returned in JSON format:
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
+{
+  "id": "user-uuid",
+  "email": "you@yourcompany.com",
+  "firstName": "Your",
+  "lastName": "Name",
+  "organization": {
+    "id": "org-uuid",
+    "name": "Your Company"
   }
-]
+}
 ```
+
+## Error handling
+
+Errors are returned with appropriate HTTP status codes:
+
+| Status Code | Description                                  |
+| ----------- | -------------------------------------------- |
+| 400         | Bad Request - Invalid parameters             |
+| 401         | Unauthorized - Invalid or missing API key    |
+| 403         | Forbidden - Insufficient permissions         |
+| 404         | Not Found - Resource doesn't exist           |
+| 409         | Conflict - Resource already exists           |
+| 429         | Too Many Requests - Rate limit exceeded      |
+| 500         | Internal Server Error - Something went wrong |
+
+Error responses include details:
+
+```json
+{
+  "error": "ValidationError",
+  "message": "Invalid phone number format",
+  "details": {
+    "field": "primaryPhone",
+    "value": "invalid"
+  }
+}
+```
+
+## Rate limiting
+
+API requests are rate limited to ensure fair usage:
+
+- **Default**: 100 requests per minute
+- **Burst**: Up to 200 requests in short periods
+
+When rate limited, you'll receive a `429` status code. Implement exponential backoff for retries.
+
+## Pagination
+
+List endpoints support pagination:
+
+```bash
+GET /contacts?page=1&limit=20
+```
+
+Response includes pagination metadata:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5,
+    "totalItems": 100,
+    "hasNextPage": true,
+    "hasPrevPage": false
+  }
+}
+```
+
+## API Endpoints
+
+### Core Resources
+
+<CardGroup cols="2">
+
+<Card title="Contacts" icon="user">
+  Create, read, update, and delete contacts.
+</Card>
+
+<Card title="Audiences" icon="users">
+  Manage contact groups for targeting.
+</Card>
+
+<Card title="Flows" icon="diagram-project">
+  Define call logic and behavior.
+</Card>
+
+<Card title="Programs" icon="play">
+  Configure and launch campaigns.
+</Card>
+
+<Card title="Executions" icon="chart-line">
+  Monitor running campaigns.
+</Card>
+
+<Card title="Audio" icon="volume-high">
+  Upload and manage audio files.
+</Card>
+
+</CardGroup>
+
+## OpenAPI Specification
+
+The complete API specification is available in OpenAPI format. You can use it to:
+
+- Generate client libraries
+- Import into API tools (Postman, Insomnia)
+- Build automated integrations
+
+## Getting help
+
+- Check the [FAQ](/help-center/faq) for common questions
+- Review [Troubleshooting](/help-center/troubleshooting) for error resolution
+- Contact support for additional assistance

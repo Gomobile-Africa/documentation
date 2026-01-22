@@ -1,0 +1,238 @@
+---
+title: "Audiences"
+description: "Groups of contacts that can be targeted by campaigns"
+---
+
+Audiences are groups of contacts. Instead of selecting contacts individually for each campaign, you organize them into audiences and target entire groups.
+
+## Why audiences matter
+
+Audiences solve several problems:
+
+- **Reusability** - Create an audience once, use it across multiple campaigns
+- **Segmentation** - Target different groups with different messages
+- **Maintenance** - Update audience membership without changing programs
+- **Overlap** - The same contact can belong to multiple audiences
+
+Think of audiences as dynamic lists that you can modify independently of your campaigns.
+
+## Creating audiences
+
+Create an audience with a name and optional description:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/audience \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Premium Customers",
+    "description": "Customers on premium subscription plans"
+  }'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "Premium Customers",
+  "description": "Customers on premium subscription plans",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+## Adding contacts to audiences
+
+Once you have an audience, add contacts to it:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/audience/AUDIENCE_ID/add-contacts \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contacts": [
+      "contact-id-1",
+      "contact-id-2",
+      "contact-id-3"
+    ]
+  }'
+```
+
+You can add contacts in bulk—useful when importing from external systems.
+
+## Viewing audience contacts
+
+Get a paginated list of contacts in an audience:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/audience/AUDIENCE_ID/contacts?page=1&limit=20" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "contact-uuid",
+      "firstName": "John",
+      "lastName": "Doe",
+      "primaryPhone": "+212612345678",
+      "primaryEmail": "john@example.com",
+      "createdAt": "2025-01-15T10:30:00.000Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 150,
+    "totalPages": 8,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+Search and filter options:
+
+- **Searchable fields**: `firstName`, `lastName`, `primaryPhone`
+- **Sortable fields**: `firstName`, `lastName`, `primaryPhone`, `createdAt`
+
+Example with search:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/audience/AUDIENCE_ID/contacts?search=john&sortBy=firstName&sortOrder=asc" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Listing audiences
+
+View all audiences in your organization:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/audience?page=1&limit=20" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Search and sort options:
+
+- **Searchable fields**: `name`, `description`
+- **Sortable fields**: `name`, `createdAt`, `updatedAt`
+
+Example with filters:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/audience?search=premium&sortBy=name&sortOrder=asc" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Updating audiences
+
+Modify audience details:
+
+```bash
+curl -X PUT https://api.gomobile.ma/api/audience/AUDIENCE_ID \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "VIP Customers",
+    "description": "Updated description for VIP tier"
+  }'
+```
+
+## Audience strategies
+
+### By customer value
+
+```
+┌─────────────────┐
+│  All Contacts   │
+├─────────────────┤
+│ ┌─────────────┐ │
+│ │   Premium   │ │  → High-touch campaigns
+│ └─────────────┘ │
+│ ┌─────────────┐ │
+│ │   Standard  │ │  → Regular campaigns
+│ └─────────────┘ │
+│ ┌─────────────┐ │
+│ │    Trial    │ │  → Conversion campaigns
+│ └─────────────┘ │
+└─────────────────┘
+```
+
+### By geography
+
+```
+Morocco Customers
+├── Casablanca Region
+├── Rabat Region
+├── Marrakech Region
+└── Other Regions
+```
+
+### By engagement
+
+```
+All Customers
+├── Active (contacted in last 30 days)
+├── At Risk (no contact in 60 days)
+└── Churned (no contact in 90+ days)
+```
+
+## Overlapping audiences
+
+Contacts can belong to multiple audiences. This is intentional and useful:
+
+- A contact might be in both "Premium Customers" and "Casablanca Region"
+- You can target them with region-specific campaigns AND premium-specific campaigns
+- When the same contact appears in multiple executions, Gomobile handles deduplication
+
+## Audience size and campaigns
+
+When you launch a program, Gomobile snapshots the audience at that moment. This means:
+
+- Contacts added after launch won't be included in that execution
+- Contacts removed after launch will still be called (they were in the snapshot)
+- This ensures predictable behavior for running campaigns
+
+To include new contacts, launch a new execution of the program.
+
+## Deleting audiences
+
+Remove an audience when it's no longer needed:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/audience/AUDIENCE_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Deleting an audience doesn't delete the contacts—they remain in the system and can be added to other audiences.
+
+## Best practices
+
+- **Keep audiences focused** - One clear purpose per audience
+- **Use descriptive names** - Future you will thank present you
+- **Document in descriptions** - Explain the criteria for membership
+- **Review periodically** - Remove stale audiences, update membership
+- **Consider audience size** - Very large audiences may need multiple executions
+
+## Related concepts
+
+<CardGroup cols="2">
+
+<Card title="Contacts" icon="user" href="/core-concepts/contacts">
+  The people who belong to audiences.
+</Card>
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Campaigns that target audiences.
+</Card>
+
+<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
+  Running instances that process audiences.
+</Card>
+
+</CardGroup>

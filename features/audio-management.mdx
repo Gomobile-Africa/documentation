@@ -1,0 +1,239 @@
+---
+title: "Audio Management"
+description: "Upload, organize, and use audio files in your campaigns"
+---
+
+Audio files bring your call flows to life. Gomobile provides a complete system for uploading, organizing, and using audio in your campaigns.
+
+## Supported formats
+
+Gomobile accepts common audio formats and converts them for telephony use:
+
+- WAV (recommended)
+- MP3
+- OGG
+
+<Tip>
+  For best quality, upload WAV files at 8kHz sample rate, 16-bit mono. Files are
+  automatically converted if they don't match this specification.
+</Tip>
+
+## Uploading audio
+
+Upload an audio file:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/audio-management/upload \
+  -H "x-api-key: YOUR_API_KEY" \
+  -F "file=@/path/to/audio.wav" \
+  -F "title=Welcome Message" \
+  -F "description=Main greeting for payment campaigns" \
+  -F "usageType=welcome" \
+  -F "tags=greeting,payment"
+```
+
+Response:
+
+```json
+{
+  "id": "audio-uuid",
+  "title": "Welcome Message",
+  "description": "Main greeting for payment campaigns",
+  "usageType": "welcome",
+  "tags": ["greeting", "payment"],
+  "durationSeconds": 8.5,
+  "sampleRate": 8000,
+  "channels": 1,
+  "bitDepth": 16,
+  "originalFileName": "audio.wav",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "file": {
+    "id": "file-uuid",
+    "name": "audio_processed.wav",
+    "contentType": "audio/wav",
+    "fileSize": 136000
+  }
+}
+```
+
+## Usage types
+
+Categorize your audio for easier management:
+
+| Type           | Purpose                     |
+| -------------- | --------------------------- |
+| `welcome`      | Greeting messages           |
+| `goodbye`      | Closing messages            |
+| `question`     | Questions for the recipient |
+| `prompt`       | Instructional prompts       |
+| `hold_music`   | Music for hold situations   |
+| `notification` | Alert messages              |
+| `other`        | Anything else               |
+
+## Listing audio files
+
+Browse your audio library:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/audio-management/audios?page=1&limit=20&usageType=welcome" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Filter options:
+
+| Parameter   | Description                             |
+| ----------- | --------------------------------------- |
+| `search`    | Search title, description, tags         |
+| `usageType` | Filter by usage type                    |
+| `tags`      | Filter by tags                          |
+| `sortBy`    | `createdAt`, `title`, `durationSeconds` |
+| `sortOrder` | `asc` or `desc`                         |
+
+## Getting audio metadata
+
+Retrieve details about a specific audio file:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID/metadata \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Streaming audio
+
+Stream the audio file directly:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+This returns the binary audio data with appropriate headers for playback.
+
+## Playback URLs
+
+Generate a temporary signed URL for external playback:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID/playback-url?expiresIn=3600" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "audio-uuid",
+  "playbackUrl": "https://storage.gomobile.ma/audio.wav?signature=...",
+  "expiresIn": 3600,
+  "expiresAt": "2025-01-15T11:30:00.000Z"
+}
+```
+
+Use this for previewing audio in your application or sharing with team members.
+
+## Updating audio metadata
+
+Change title, description, or tags:
+
+```bash
+curl -X PUT https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Updated Welcome Message",
+    "tags": ["greeting", "payment", "2025"]
+  }'
+```
+
+<Note>
+  You can't replace the audio file itself—upload a new file and update your
+  flows.
+</Note>
+
+## Deleting audio
+
+Remove an audio file:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+<Warning>
+  Make sure no active flows reference the audio before deleting.
+</Warning>
+
+## Using audio in flows
+
+Reference audio files in Play nodes:
+
+```json
+{
+  "type": "play",
+  "config": {
+    "audioItems": [
+      { "type": "audioFile", "audioId": "welcome-audio-id" },
+      { "type": "audioFile", "audioId": "menu-prompt-id" }
+    ]
+  }
+}
+```
+
+Audio items play in sequence.
+
+## Dynamic audio references
+
+You can reference audio IDs stored in variables:
+
+```json
+{
+  "type": "audioFile",
+  "audioId": { "source": "variable", "variableName": "selectedAudioId" }
+}
+```
+
+This allows for dynamic audio selection based on contact data or flow logic.
+
+## Recording guidelines
+
+For professional-quality recordings:
+
+1. **Use a quiet environment** - Minimize background noise
+2. **Maintain consistent volume** - Don't vary too much between recordings
+3. **Speak clearly** - Moderate pace, clear pronunciation
+4. **Keep messages concise** - Get to the point quickly
+5. **Test on actual phones** - Quality differs from computer speakers
+
+## Organizing your library
+
+As your audio library grows:
+
+- **Use consistent naming** - `campaign_type_message.wav`
+- **Leverage tags** - Add multiple relevant tags
+- **Set usage types** - Makes filtering easier
+- **Write descriptions** - Future you will appreciate it
+- **Archive old audio** - Don't delete, just organize
+
+## File size limits
+
+| Plan       | Max file size | Max duration |
+| ---------- | ------------- | ------------ |
+| Trial      | 5 MB          | 60 seconds   |
+| Free       | 10 MB         | 2 minutes    |
+| Basic      | 25 MB         | 5 minutes    |
+| Advanced   | 50 MB         | 10 minutes   |
+| Enterprise | Custom        | Custom       |
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Call Flows" icon="diagram-project" href="/features/call-flows">
+  Using audio in flows.
+</Card>
+
+<Card title="Dictionaries" icon="book" href="/features/dictionaries">
+  Dynamic word/number audio.
+</Card>
+
+</CardGroup>

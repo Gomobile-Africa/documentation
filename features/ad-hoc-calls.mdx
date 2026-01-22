@@ -1,0 +1,182 @@
+---
+title: "Ad-hoc Calls"
+description: "Make individual calls outside of campaigns"
+---
+
+Ad-hoc calls let you make individual calls without setting up a full campaign. Perfect for testing flows, one-off notifications, or integration with external systems.
+
+## When to use ad-hoc calls
+
+- **Testing**: Verify your flow works before launching a campaign
+- **One-off calls**: Send a single notification to a specific contact
+- **External triggers**: Call when an event happens in your system
+- **Manual outreach**: Agent-initiated calls through your application
+
+## Making a call
+
+Request an ad-hoc call:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/call-requests \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fromNumber": "+212500000001",
+    "contactId": "contact-uuid",
+    "flowId": "flow-uuid",
+    "retry": { "type": "none" }
+  }'
+```
+
+Response:
+
+```json
+{
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued"
+}
+```
+
+The call is queued immediately and executed asynchronously. Use the `jobId` to track progress.
+
+## Request parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `fromNumber` | Yes | Caller ID (must be in your DID pool) |
+| `contactId` | Yes | Contact to call (phone fetched from contact) |
+| `flowId` | Yes | Flow to execute during the call |
+| `retry` | Yes | Retry strategy for failed attempts |
+| `startAt` | No | Schedule call for later (ISO 8601) |
+
+## Retry strategies
+
+### No retries
+
+```json
+{
+  "retry": { "type": "none" }
+}
+```
+
+Single attempt. Good for testing or when you'll handle retries externally.
+
+### Fixed delay
+
+```json
+{
+  "retry": {
+    "type": "fixed-delay",
+    "delay": 300000,
+    "maxRetries": 3
+  }
+}
+```
+
+Retry after a fixed delay (in milliseconds). With `maxRetries: 3`, the contact gets up to 4 total attempts.
+
+### Scheduled retries
+
+```json
+{
+  "retry": {
+    "type": "scheduled",
+    "dates": [
+      "2025-01-20T11:00:00Z",
+      "2025-01-20T14:00:00Z"
+    ]
+  }
+}
+```
+
+Retry at specific times. The number of dates equals the number of retry attempts.
+
+## Scheduling calls
+
+Schedule a call for later:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/call-requests \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fromNumber": "+212500000001",
+    "contactId": "contact-uuid",
+    "flowId": "flow-uuid",
+    "retry": { "type": "none" },
+    "startAt": "2025-01-20T10:00:00Z"
+  }'
+```
+
+The call will be queued but won't execute until the specified time.
+
+## Cancelling a call
+
+Cancel a queued call before it executes:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/call-requests/JOB_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Returns `204 No Content` on success.
+
+<Note>
+Cancellation only works for calls in `waiting` or `delayed` state. Calls already in progress will complete normally.
+</Note>
+
+## Tracking call status
+
+Use the job ID to get a detailed report:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/call-report/JOB_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+See [Call Reports](/features/call-reports) for full details on report structure.
+
+## Error handling
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 400 | `CallRequestValidationError` | Invalid request format |
+| 400 | `InvalidRetryStrategyError` | Malformed retry strategy |
+| 400 | `InvalidStartTimeError` | `startAt` is in the past |
+| 404 | `FlowNotFoundError` | Flow doesn't exist |
+| 404 | `ContactNotFoundError` | Contact doesn't exist or has no phone |
+
+## Ad-hoc vs program calls
+
+| Feature | Ad-hoc Calls | Program Calls |
+|---------|--------------|---------------|
+| Audience | Single contact | Entire audience |
+| Scheduling | Per-call `startAt` | Program `startAt` |
+| Pause windows | Not supported | Supported |
+| Capacity management | None | Managed by orchestrator |
+| Use case | Testing, one-offs | Campaigns |
+
+## Best practices
+
+- **Test flows first** - Use ad-hoc calls to verify flows before campaigns
+- **Use reasonable retries** - 2-3 retries is usually enough
+- **Track job IDs** - Store them for later reporting
+- **Handle async** - Calls execute asynchronously; poll for results
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Call Reports" icon="chart-line" href="/features/call-reports">
+  Track call results and details.
+</Card>
+
+<Card title="Flows" icon="diagram-project" href="/core-concepts/flows">
+  Define what happens during calls.
+</Card>
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Run campaigns with audiences.
+</Card>
+
+</CardGroup>

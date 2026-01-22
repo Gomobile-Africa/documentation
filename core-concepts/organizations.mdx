@@ -1,0 +1,117 @@
+---
+title: "Organizations"
+description: "The top-level entity that contains all your Gomobile resources"
+---
+
+An organization is the top-level entity in Gomobile. It represents your company or team and acts as a container for all your resources—users, contacts, flows, programs, and more.
+
+## What organizations do
+
+Organizations provide:
+
+- **Isolation** - Your data is completely separate from other organizations
+- **Shared access** - Multiple users can collaborate on the same campaigns
+- **Billing boundary** - Usage and subscription plans are tracked per organization
+- **Configuration** - Default settings like timezone and currency
+
+## Organization properties
+
+| Property     | Description                                                                     |
+| ------------ | ------------------------------------------------------------------------------- |
+| `name`       | Your company or team name                                                       |
+| `slug`       | Unique URL-friendly identifier                                                  |
+| `country`    | ISO country code (e.g., `MA` for Morocco)                                       |
+| `timezone`   | Default timezone for scheduling (e.g., `Africa/Casablanca`)                     |
+| `currency`   | Currency for billing (e.g., `MAD`)                                              |
+| `type`       | Organization type: `government`, `enterprise`, `individual`, `education`, `ngo` |
+| `industry`   | Your industry or sector                                                         |
+| `plan`       | Subscription tier: `trial`, `free`, `basic`, `advanced`, `enterprise`           |
+| `size`       | Team size: `1-10`, `11-50`, `51-200`, `500+`                                    |
+| `primaryUse` | Main use case: `sales`, `support`, `market research`                            |
+| `status`     | Account status: `active`, `suspended`, `inactive`                               |
+
+## Getting started with an organization
+
+Organizations are created by the Gomobile team when you sign up.
+
+<Info>
+  **Need access?** [Request your API
+  key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE)
+  and our team will create your organization and provide credentials.
+</Info>
+
+Once your organization is set up, you'll receive credentials to access all organizational resources.
+
+## Viewing your organization
+
+View your organization details through your user profile:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/users/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+The response includes your organization information:
+
+```json
+{
+  "id": "user-uuid",
+  "email": "admin@yourcompany.com",
+  "firstName": "Admin",
+  "lastName": "User",
+  "organization": {
+    "id": "org-uuid",
+    "name": "Your Company",
+    "slug": "your-company",
+    "plan": "trial",
+    "status": "active",
+    "timezone": "Africa/Casablanca"
+  }
+}
+```
+
+Organization updates (name, settings, etc.) require staff permissions. Contact your administrator for changes.
+
+## Plans and limits
+
+Different plans offer different capabilities:
+
+| Feature          | Trial   | Free | Basic | Advanced  | Enterprise |
+| ---------------- | ------- | ---- | ----- | --------- | ---------- |
+| Contacts         | Limited | 500  | 5,000 | 50,000    | Unlimited  |
+| Monthly calls    | 100     | 500  | 5,000 | 50,000    | Custom     |
+| Concurrent calls | 1       | 5    | 20    | 100       | Custom     |
+| Flows            | 3       | 10   | 50    | Unlimited | Unlimited  |
+| Team members     | 1       | 3    | 10    | 50        | Unlimited  |
+
+Contact sales for enterprise pricing and custom limits.
+
+## Multi-user access
+
+Multiple users can belong to the same organization. Each user has their own login credentials but shares access to organizational resources.
+
+To add users to your organization, contact your administrator.
+
+## Best practices
+
+- **Keep organization info updated** - Especially contact information for account issues
+- **Set the correct timezone** - Scheduling depends on it
+- **Regularly audit user access** - Remove users who no longer need access
+
+## Related concepts
+
+<CardGroup cols="2">
+
+<Card title="Authentication" icon="key" href="/getting-started/authentication">
+  How to authenticate API requests.
+</Card>
+
+<Card title="Contacts" icon="user" href="/core-concepts/contacts">
+  People you call (different from users).
+</Card>
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Campaigns that run within the organization.
+</Card>
+
+</CardGroup>

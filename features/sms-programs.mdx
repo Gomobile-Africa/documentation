@@ -1,0 +1,246 @@
+---
+title: "SMS Programs"
+description: "Send bulk SMS campaigns to your audiences"
+---
+
+SMS programs let you send bulk SMS messages to your audiences. Create personalized campaigns with template variables and track delivery progress.
+
+## Creating an SMS program
+
+```bash
+curl -X POST https://api.gomobile.ma/api/sms-programs \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Winter Promo Campaign",
+    "description": "Promotional SMS for winter sale",
+    "audienceId": "audience-uuid",
+    "senderId": "+212600000000",
+    "messageTemplate": "Hello {{ $contact.firstName }}, enjoy 20% off with code WINTER20!"
+  }'
+```
+
+Response:
+
+```json
+{
+  "id": "sms-program-uuid",
+  "organizationId": "org-uuid",
+  "name": "Winter Promo Campaign",
+  "description": "Promotional SMS for winter sale",
+  "status": "draft",
+  "audienceId": "audience-uuid",
+  "senderId": "+212600000000",
+  "messageTemplate": "Hello {{ $contact.firstName }}, enjoy 20% off with code WINTER20!",
+  "jobId": null,
+  "totalContacts": 0,
+  "startedAt": null,
+  "completedAt": null,
+  "errorMessage": null,
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+## Message templates
+
+Templates support `{{ $contact.* }}` placeholders:
+
+### Contact fields
+
+```
+{{ $contact.phone }}
+{{ $contact.firstName }}
+{{ $contact.lastName }}
+{{ $contact.fullName }}
+{{ $contact.email }}
+{{ $contact.city }}
+{{ $contact.occupation }}
+```
+
+### Custom attributes
+
+```
+{{ $contact.customAttributes.accountBalance }}
+{{ $contact.customAttributes.membershipTier }}
+```
+
+### Example
+
+```
+Hello {{ $contact.firstName }}, your balance is {{ $contact.customAttributes.balance }} DH. 
+Pay now to avoid late fees.
+```
+
+## Listing SMS programs
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/sms-programs?page=1&limit=20&status=draft" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "sms-program-uuid",
+      "name": "Winter Promo Campaign",
+      "status": "draft",
+      ...
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 5,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+### Query parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `page` | Page number (default: 1) |
+| `limit` | Items per page (default: 20, max: 100) |
+| `search` | Search in name/description |
+| `sortBy` | Sort field (e.g., `createdAt`, `name`) |
+| `sortOrder` | `asc` or `desc` (default: `desc`) |
+| `status` | Filter by status |
+
+## Getting program details
+
+```bash
+curl -X GET https://api.gomobile.ma/api/sms-programs/PROGRAM_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response includes progress information:
+
+```json
+{
+  "id": "sms-program-uuid",
+  "name": "Winter Promo Campaign",
+  "status": "sending",
+  "totalContacts": 1500,
+  "progress": {
+    "sent": 850,
+    "failed": 12,
+    "pending": 638
+  },
+  ...
+}
+```
+
+## Updating a program
+
+Only programs in `draft` status can be updated:
+
+```bash
+curl -X PUT https://api.gomobile.ma/api/sms-programs/PROGRAM_ID \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Campaign Name",
+    "messageTemplate": "New message content"
+  }'
+```
+
+## Launching a program
+
+Start sending messages:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/sms-programs/PROGRAM_ID/launch \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "sms-program-uuid",
+  "status": "pending",
+  "totalContacts": 1500,
+  "jobId": "job-uuid"
+}
+```
+
+### Launch requirements
+
+- Program must be in `draft` status
+- Audience must have contacts with phone numbers
+- Sufficient credits required
+
+## Cancelling a program
+
+Cancel a running program:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/sms-programs/PROGRAM_ID/cancel \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+<Note>
+Cancellation is best-effort. Some messages may still be sent.
+</Note>
+
+## Deleting a program
+
+Only draft programs can be deleted:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/sms-programs/PROGRAM_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Program status
+
+| Status | Description | Editable | Launchable | Cancellable |
+|--------|-------------|----------|------------|-------------|
+| `draft` | Not yet launched | Yes | Yes | No |
+| `pending` | Job queued | No | No | Yes |
+| `sending` | Currently processing | No | No | Yes |
+| `completed` | All messages sent | No | No | No |
+| `failed` | Processing failed | No | No | No |
+| `cancelled` | Cancelled by user | No | No | No |
+
+## Status lifecycle
+
+```
+draft ──► pending ──► sending ──► completed
+  │          │           │
+  │          │           └──► failed
+  │          │
+  │          └──► cancelled
+  │
+  └──► (deleted)
+```
+
+## Error handling
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 400 | `SmsProgramInvalidStatusError` | Wrong status for operation |
+| 400 | `SmsProgramNoContactsError` | Audience has no contacts |
+| 400 | `InsufficientCreditsError` | Not enough credits |
+| 404 | `SmsProgramNotFoundError` | Program not found |
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Audiences" icon="users" href="/core-concepts/audiences">
+  Managing target audiences.
+</Card>
+
+<Card title="Contacts" icon="user" href="/core-concepts/contacts">
+  Managing contact data.
+</Card>
+
+</CardGroup>

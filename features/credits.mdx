@@ -1,0 +1,113 @@
+---
+title: "Credits"
+description: "Check your account balance and transaction history"
+---
+
+Credits are the currency for Gomobile services. Use these endpoints to monitor your balance and track usage.
+
+## Check your balance
+
+Get your current credit balance:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/credits/balance \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "balance": 1500.00
+}
+```
+
+## Transaction history
+
+View your credit transaction history:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/credits/transactions?page=1&limit=20" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "tx-001",
+      "organizationId": "org-uuid",
+      "type": "credit_add",
+      "amount": 500,
+      "balanceAfter": 1500,
+      "callId": null,
+      "smsProgramId": null,
+      "description": "Monthly credit allocation",
+      "createdBy": "user-uuid",
+      "createdAt": "2025-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "tx-002",
+      "organizationId": "org-uuid",
+      "type": "call_charge",
+      "amount": -3.75,
+      "balanceAfter": 1496.25,
+      "callId": "call-uuid",
+      "smsProgramId": null,
+      "description": null,
+      "createdBy": null,
+      "createdAt": "2025-01-15T11:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 125,
+    "totalPages": 7,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+### Query parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | number | 1 | Page number |
+| `limit` | number | 20 | Items per page (max 100) |
+| `startDate` | string | - | Filter from date (ISO 8601) |
+| `endDate` | string | - | Filter to date (ISO 8601) |
+
+### Filter by date range
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/credits/transactions?startDate=2025-01-01&endDate=2025-01-31" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Transaction types
+
+| Type | Description |
+|------|-------------|
+| `initial` | Initial credit allocation |
+| `credit_add` | Credits added to account |
+| `call_charge` | Deduction for call usage |
+| `sms_charge` | Deduction for SMS campaign |
+| `adjustment` | Manual adjustment |
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Call Reports" icon="chart-line" href="/features/call-reports">
+  View call-level details.
+</Card>
+
+<Card title="Execution Reports" icon="chart-bar" href="/features/execution-reports">
+  View campaign details.
+</Card>
+
+</CardGroup>

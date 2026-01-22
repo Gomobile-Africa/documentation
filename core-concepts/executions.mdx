@@ -1,0 +1,220 @@
+---
+title: "Executions"
+description: "Running instances of programs that track progress and status"
+---
+
+Executions are running instances of programs. When you launch a program, you create an execution that processes the audience, places calls, and tracks progress.
+
+## Understanding executions
+
+Think of the relationship this way:
+
+- **Program** = Recipe (the instructions)
+- **Execution** = Cooking session (actually doing it)
+
+You can run the same program multiple times, creating multiple executions. Each execution is independent—it has its own progress, status, and timing.
+
+## Execution lifecycle
+
+Executions move through these states:
+
+```
+scheduled ──▶ running ──▶ completed
+                │
+                ├──▶ paused ──▶ running (resumed)
+                │
+                └──▶ cancelled
+
+running ──▶ stopped (when stopAt is reached)
+```
+
+| Status      | Description                                  |
+| ----------- | -------------------------------------------- |
+| `scheduled` | Waiting for `startAt` time                   |
+| `running`   | Actively processing contacts                 |
+| `paused`    | Manually paused, can resume                  |
+| `completed` | All contacts processed                       |
+| `stopped`   | Reached `stopAt`, remaining contacts skipped |
+| `cancelled` | Manually cancelled                           |
+
+## Launching an execution
+
+Create an execution by launching a program:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/programs/PROGRAM_ID/launch \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "executionId": "770e8400-e29b-41d4-a716-446655440003"
+}
+```
+
+## Monitoring progress
+
+Check execution status and progress:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/program-executions/EXECUTION_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "770e8400-e29b-41d4-a716-446655440003",
+  "programId": "program-uuid",
+  "status": "running",
+  "totalContacts": 1500,
+  "contactsCompleted": 750,
+  "contactsFailed": 45,
+  "contactsPending": 680,
+  "contactsInProgress": 25,
+  "scheduledStartAt": "2025-01-20T09:00:00.000Z",
+  "scheduledStopAt": "2025-01-20T18:00:00.000Z",
+  "actualStartAt": "2025-01-20T09:00:05.000Z",
+  "createdAt": "2025-01-20T08:55:00.000Z",
+  "updatedAt": "2025-01-20T12:30:00.000Z"
+}
+```
+
+## Progress counters
+
+Understanding what each counter means:
+
+| Counter              | Description                                     |
+| -------------------- | ----------------------------------------------- |
+| `totalContacts`      | Audience size at launch (snapshot)              |
+| `contactsCompleted`  | Successfully reached (answered, completed flow) |
+| `contactsFailed`     | Exhausted all retries                           |
+| `contactsPending`    | Waiting to be called (includes retry queue)     |
+| `contactsInProgress` | Currently being called or queued                |
+
+These counters always sum to `totalContacts`:
+
+```
+totalContacts = contactsCompleted + contactsFailed + contactsPending + contactsInProgress
+```
+
+## Pausing and resuming
+
+Pause a running execution:
+
+```bash
+curl -X PATCH https://api.gomobile.ma/api/program-executions/EXECUTION_ID/pause \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+When paused:
+
+- No new calls are initiated
+- Calls already in progress continue to completion
+- Retry schedules are preserved
+
+Resume a paused execution:
+
+```bash
+curl -X PATCH https://api.gomobile.ma/api/program-executions/EXECUTION_ID/resume \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Cancelling executions
+
+Stop an execution permanently:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/program-executions/EXECUTION_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+When cancelled:
+
+- No new calls are initiated
+- Calls in progress continue to completion
+- Remaining pending contacts are marked as skipped
+- Cannot be resumed
+
+## Listing executions
+
+View all executions for a program:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/programs/PROGRAM_ID/executions \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+View all active executions across your organization:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/program-executions \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+This returns only active executions (running, scheduled, paused).
+
+## Execution timing
+
+Key timestamps:
+
+| Timestamp          | Description                               |
+| ------------------ | ----------------------------------------- |
+| `scheduledStartAt` | When the execution should begin           |
+| `scheduledStopAt`  | When the execution should stop (optional) |
+| `actualStartAt`    | When calls actually started               |
+| `actualEndAt`      | When the last call completed              |
+
+If an execution reaches `scheduledStopAt` before completing all contacts, it enters `stopped` status and remaining contacts are not called.
+
+## Audience snapshots
+
+When you launch an execution, Gomobile takes a snapshot of the audience. This means:
+
+- Contacts added to the audience after launch are NOT included
+- Contacts removed from the audience after launch ARE still called
+- This ensures predictable behavior during execution
+
+To include new contacts, launch a new execution.
+
+## Multiple concurrent executions
+
+You can't run multiple executions of the same program simultaneously. If you try to launch while one is already running:
+
+```json
+{
+  "error": "ExecutionAlreadyRunningError",
+  "message": "Program already has a running execution"
+}
+```
+
+Wait for the current execution to complete, or cancel it first.
+
+## Best practices
+
+- **Monitor progress** - Check counters periodically during large campaigns
+- **Set stop times** - Prevent executions from running indefinitely
+- **Use pause wisely** - Good for unexpected issues, not routine stops
+- **Review failures** - Understand why contacts failed before retrying
+- **Clean up** - Don't leave paused executions hanging
+
+## Related concepts
+
+<CardGroup cols="2">
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  The configuration that executions run.
+</Card>
+
+<Card title="Retry Strategies" icon="rotate" href="/features/retry-strategies">
+  How failures are retried.
+</Card>
+
+<Card title="Call Flows" icon="diagram-project" href="/features/call-flows">
+  What happens during calls.
+</Card>
+
+</CardGroup>

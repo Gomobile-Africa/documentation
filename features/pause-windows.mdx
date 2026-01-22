@@ -1,0 +1,282 @@
+---
+title: "Pause Windows"
+description: "Define times when calls should NOT be made"
+---
+
+Pause windows define times when calls should NOT be made. They help you respect recipients' time, comply with regulations, and avoid wasted calls during off-hours.
+
+## Why pause windows matter
+
+Calling at the wrong time:
+
+- Annoys recipients
+- Reduces answer rates
+- May violate regulations
+- Wastes resources
+
+Pause windows let you define "do not call" periods that Gomobile automatically respects.
+
+## How they work
+
+During a pause window:
+
+1. No new calls are initiated
+2. Contacts wait in the pending queue
+3. When the window ends, calling resumes
+4. No contacts are skipped—just delayed
+
+This applies to both initial calls and retries.
+
+## Configuration
+
+Pause windows are defined on programs:
+
+```json
+{
+  "pauseWindows": {
+    "monday": [
+      {
+        "startAt": { "hour": 12, "minute": 0 },
+        "endAt": { "hour": 14, "minute": 0 }
+      }
+    ],
+    "tuesday": [
+      {
+        "startAt": { "hour": 12, "minute": 0 },
+        "endAt": { "hour": 14, "minute": 0 }
+      }
+    ],
+    "wednesday": [
+      {
+        "startAt": { "hour": 12, "minute": 0 },
+        "endAt": { "hour": 14, "minute": 0 }
+      }
+    ],
+    "thursday": [
+      {
+        "startAt": { "hour": 12, "minute": 0 },
+        "endAt": { "hour": 14, "minute": 0 }
+      }
+    ],
+    "friday": [
+      {
+        "startAt": { "hour": 12, "minute": 0 },
+        "endAt": { "hour": 14, "minute": 0 }
+      }
+    ],
+    "saturday": [],
+    "sunday": []
+  }
+}
+```
+
+This pauses calling during lunch (12:00-14:00) on weekdays.
+
+## Weekly windows
+
+Define recurring windows for each day of the week:
+
+```json
+{
+  "pauseWindows": {
+    "monday": [
+      {
+        "startAt": { "hour": 0, "minute": 0 },
+        "endAt": { "hour": 9, "minute": 0 }
+      },
+      {
+        "startAt": { "hour": 18, "minute": 0 },
+        "endAt": { "hour": 23, "minute": 59 }
+      }
+    ]
+  }
+}
+```
+
+This pauses before 9 AM and after 6 PM on Mondays.
+
+Multiple windows per day:
+
+```json
+{
+  "monday": [
+    {
+      "startAt": { "hour": 12, "minute": 0 },
+      "endAt": { "hour": 13, "minute": 0 }
+    },
+    {
+      "startAt": { "hour": 17, "minute": 0 },
+      "endAt": { "hour": 18, "minute": 0 }
+    }
+  ]
+}
+```
+
+This pauses during lunch hour and the last hour of the workday.
+
+## Advanced windows (specific dates)
+
+For holidays and special events, use advanced windows with specific dates:
+
+```json
+{
+  "pauseWindows": {
+    "advanced": [
+      {
+        "startAt": "2025-12-25T00:00:00Z",
+        "endAt": "2025-12-26T00:00:00Z"
+      },
+      {
+        "startAt": "2025-01-01T00:00:00Z",
+        "endAt": "2025-01-02T00:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+This pauses all day on Christmas and New Year's Day.
+
+You can combine weekly and advanced windows:
+
+```json
+{
+  "pauseWindows": {
+    "monday": [
+      {
+        "startAt": { "hour": 12, "minute": 0 },
+        "endAt": { "hour": 14, "minute": 0 }
+      }
+    ],
+    "advanced": [
+      { "startAt": "2025-12-25T00:00:00Z", "endAt": "2025-12-26T00:00:00Z" }
+    ]
+  }
+}
+```
+
+## Common patterns
+
+### Business hours only
+
+Only call 9 AM to 6 PM on weekdays:
+
+```json
+{
+  "pauseWindows": {
+    "monday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 9, "minute": 0 } },
+      { "startAt": { "hour": 18, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "tuesday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 9, "minute": 0 } },
+      { "startAt": { "hour": 18, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "wednesday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 9, "minute": 0 } },
+      { "startAt": { "hour": 18, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "thursday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 9, "minute": 0 } },
+      { "startAt": { "hour": 18, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "friday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 9, "minute": 0 } },
+      { "startAt": { "hour": 18, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "saturday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "sunday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ]
+  }
+}
+```
+
+### Lunch breaks
+
+Pause during typical lunch times (apply to each weekday):
+
+```json
+{
+  "monday": [
+    { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+  ]
+}
+```
+
+### Weekend only
+
+Only call on weekends (for B2C):
+
+```json
+{
+  "pauseWindows": {
+    "monday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "tuesday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "wednesday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "thursday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ],
+    "friday": [
+      { "startAt": { "hour": 0, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ]
+  }
+}
+```
+
+## Timezone considerations
+
+Pause windows use the organization's timezone. If your organization is set to `Africa/Casablanca`:
+
+- `{ "hour": 12, "minute": 0 }` means 12:00 PM in Casablanca
+- This adjusts automatically for DST if applicable
+
+If you're calling across timezones, consider:
+
+- Setting windows based on recipient timezones (if you segment by region)
+- Using broader windows to cover multiple zones
+
+## Pause windows vs program stop time
+
+| Feature       | Purpose                                   |
+| ------------- | ----------------------------------------- |
+| Pause windows | Temporary pauses, calling resumes         |
+| `stopAt`      | Permanent end, remaining contacts skipped |
+
+Use pause windows for breaks during the day. Use `stopAt` to set a hard deadline.
+
+## Best practices
+
+1. **Respect local customs** - Lunch times vary by culture
+2. **Consider your audience** - B2B: business hours, B2C: evenings/weekends
+3. **Account for holidays** - Use advanced windows for local holidays
+4. **Test your windows** - Verify they work as expected
+5. **Document your reasoning** - So future you understands the choices
+
+## Limitations
+
+- Windows are based on organization timezone
+- Granularity is to the minute
+- Cannot set different windows per contact (segment into different programs)
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Setting pause windows.
+</Card>
+
+<Card title="Retry Strategies" icon="rotate" href="/features/retry-strategies">
+  Retries respect pause windows.
+</Card>
+
+</CardGroup>

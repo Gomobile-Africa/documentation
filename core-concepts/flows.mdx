@@ -1,0 +1,267 @@
+---
+title: "Flows"
+description: "Define what happens during a call with node-based logic"
+---
+
+Flows define what happens during a call. They're the brains of your campaigns—controlling everything from the initial dial to the final hangup.
+
+## How flows work
+
+A flow is a directed graph of nodes. Each node performs an action and then routes to the next node based on what happened. Execution starts at a designated start node and continues until it reaches a terminal node (usually a hangup).
+
+```
+┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
+│  Dial   │────▶│  Play   │────▶│  DTMF   │────▶│ Hangup  │
+└─────────┘     └─────────┘     └─────────┘     └─────────┘
+     │                              │
+     │ onBusy                       │ onTimeout
+     ▼                              ▼
+┌─────────┐                    ┌─────────┐
+│ Hangup  │                    │ Hangup  │
+└─────────┘                    └─────────┘
+```
+
+## Node types
+
+Gomobile supports these node types:
+
+| Node             | Purpose                       | Outputs                                                                                            |
+| ---------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| **Dial**         | Places the outbound call      | `onAnswer`, `onVoicemail`, `onNoAnswer`, `onBusy`, `onRejected`, `onError`, `default`              |
+| **Answer**       | Answers an inbound call       | `onSuccess`, `onError`, `default`                                                                  |
+| **Play**         | Plays audio to the recipient  | `onComplete`, `onError`, `default`                                                                 |
+| **DTMF**         | Collects keypad input         | `branches` (by digit), `onSuccess`, `onTimeout`, `onInvalid`, `onMaxRetries`, `onError`, `default` |
+| **Record**       | Records the recipient's voice | `onComplete`, `onTimeout`, `onError`, `default`                                                    |
+| **Condition**    | Branches based on variables   | `onTrue`, `onFalse`, `onError`                                                                     |
+| **Set Variable** | Stores a value for later use  | `onSuccess`, `onError`, `default`                                                                  |
+| **Hangup**       | Ends the call                 | None (terminal node)                                                                               |
+
+## Creating a flow
+
+Here's a complete flow that plays a message and collects a response:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/flows \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Payment Reminder",
+    "description": "Reminds customers about pending payments",
+    "graph": {
+      "startNodeId": "dial-1",
+      "nodes": [
+        {
+          "id": "dial-1",
+          "type": "dial",
+          "label": "Call Customer",
+          "config": {
+            "timeout": 30000,
+            "enableAMD": true
+          },
+          "outputs": {
+            "onAnswer": "play-greeting",
+            "onVoicemail": "hangup-vm",
+            "onNoAnswer": "hangup-na",
+            "onBusy": "hangup-busy"
+          }
+        },
+        {
+          "id": "play-greeting",
+          "type": "play",
+          "label": "Play Reminder",
+          "config": {
+            "audioItems": [
+              { "type": "audioFile", "audioId": "greeting-audio-id" }
+            ]
+          },
+          "outputs": {
+            "onComplete": "collect-response"
+          }
+        },
+        {
+          "id": "collect-response",
+          "type": "dtmf",
+          "label": "Get Response",
+          "config": {
+            "mode": "single_digit",
+            "variable": "customerResponse",
+            "timeout": 10000,
+            "singleDigitConfig": {
+              "allowedDigits": ["1", "2"]
+            }
+          },
+          "outputs": {
+            "branches": {
+              "1": "play-confirmed",
+              "2": "play-callback"
+            },
+            "onTimeout": "hangup-timeout"
+          }
+        },
+        {
+          "id": "play-confirmed",
+          "type": "play",
+          "label": "Confirm Payment",
+          "config": {
+            "audioItems": [
+              { "type": "audioFile", "audioId": "confirmed-audio-id" }
+            ]
+          },
+          "outputs": {
+            "onComplete": "hangup-success"
+          }
+        },
+        {
+          "id": "play-callback",
+          "type": "play",
+          "label": "Schedule Callback",
+          "config": {
+            "audioItems": [
+              { "type": "audioFile", "audioId": "callback-audio-id" }
+            ]
+          },
+          "outputs": {
+            "onComplete": "hangup-success"
+          }
+        },
+        {
+          "id": "hangup-success",
+          "type": "hangup",
+          "label": "End Call - Success",
+          "config": { "reason": "completed", "hangupType": "normal" }
+        },
+        {
+          "id": "hangup-vm",
+          "type": "hangup",
+          "label": "End Call - Voicemail",
+          "config": { "reason": "voicemail", "hangupType": "voicemail" }
+        },
+        {
+          "id": "hangup-na",
+          "type": "hangup",
+          "label": "End Call - No Answer",
+          "config": { "reason": "no_answer", "hangupType": "no_answer" }
+        },
+        {
+          "id": "hangup-busy",
+          "type": "hangup",
+          "label": "End Call - Busy",
+          "config": { "reason": "busy", "hangupType": "busy" }
+        },
+        {
+          "id": "hangup-timeout",
+          "type": "hangup",
+          "label": "End Call - Timeout",
+          "config": { "reason": "dtmf_timeout", "hangupType": "timeout" }
+        }
+      ]
+    }
+  }'
+```
+
+## Variables in flows
+
+Flows can read and write variables during execution. Variables come from several sources:
+
+| Source           | Example                             | Description                   |
+| ---------------- | ----------------------------------- | ----------------------------- |
+| System           | `sys.callId`, `sys.contactPhone`    | Automatically available       |
+| Contact          | `contact.firstName`, `contact.city` | From the contact being called |
+| Custom Attribute | `contact.customAttributes.balance`  | Custom fields on contacts     |
+| Flow Variable    | `customerResponse`                  | Set during execution          |
+
+Use variables in conditions or to personalize audio playback.
+
+## Answering Machine Detection (AMD)
+
+When `enableAMD` is true on a dial node, Gomobile attempts to detect if a human or machine answered:
+
+- **Human detected** → Routes to `onAnswer`
+- **Machine detected** → Routes to `onVoicemail`
+
+This helps you leave voicemail messages instead of playing interactive prompts to answering machines.
+
+## Audio playback options
+
+The Play node supports several audio types:
+
+```json
+{
+  "audioItems": [
+    { "type": "audioFile", "audioId": "welcome-message" },
+    {
+      "type": "number",
+      "value": {
+        "source": "customAttribute",
+        "attributeName": "accountBalance"
+      },
+      "mode": "full",
+      "language": "ar"
+    },
+    { "type": "audioFile", "audioId": "currency-mad" }
+  ]
+}
+```
+
+Types include:
+
+- `audioFile` - Pre-recorded audio
+- `number` - Dynamic number playback
+- `date` - Dynamic date playback
+- `word` - Dictionary-based word playback
+
+## Flow validation
+
+Before saving, Gomobile validates your flow:
+
+- Every node must be reachable from the start node
+- All output references must point to existing nodes
+- Terminal nodes (hangup) shouldn't have outputs
+- Required configuration must be present
+
+You can validate without saving:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/flows/validate \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "graph": { "startNodeId": "...", "nodes": [] } }'
+```
+
+## Best practices
+
+- **Start simple** - Get a basic flow working before adding complexity
+- **Handle all outcomes** - Every dial result should route somewhere
+- **Use descriptive labels** - Makes debugging much easier
+- **Test thoroughly** - Use ad-hoc calls to test before launching campaigns
+- **Version carefully** - Changing a flow affects all programs using it
+
+## Related concepts
+
+<CardGroup cols="2">
+
+<Card
+  title="Call Flows Guide"
+  icon="diagram-project"
+  href="/features/call-flows"
+>
+  Detailed node configuration.
+</Card>
+
+<Card
+  title="Audio Management"
+  icon="volume-high"
+  href="/features/audio-management"
+>
+  Managing audio files.
+</Card>
+
+<Card title="Dictionaries" icon="book" href="/features/dictionaries">
+  Dynamic audio for numbers and words.
+</Card>
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Using flows in campaigns.
+</Card>
+
+</CardGroup>

@@ -1,0 +1,296 @@
+---
+title: "Execution Reports"
+description: "Detailed analytics for program executions"
+---
+
+Execution reports provide comprehensive analytics for your calling campaigns, including contact metrics, call metrics, and node-level statistics.
+
+## Main execution report
+
+Get the primary report for an execution:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "executionId": "execution-uuid",
+  "programId": "program-uuid",
+  "organizationId": "org-uuid",
+
+  "status": "running",
+  "effectiveStatus": "paused_window",
+  "isInPauseWindow": true,
+
+  "scheduledStartAt": "2025-01-20T09:00:00.000Z",
+  "scheduledStopAt": "2025-01-20T18:00:00.000Z",
+  "actualStartAt": "2025-01-20T09:00:05.000Z",
+  "durationMs": 14400000,
+
+  "metadata": {
+    "flowId": "flow-uuid",
+    "flowName": "Payment Reminder Flow",
+    "audienceId": "audience-uuid",
+    "didPool": ["+212500000001", "+212500000002"],
+    "retryStrategy": {
+      "type": "fixed_delay",
+      "delayMinutes": 30,
+      "maxRetries": 2
+    }
+  },
+
+  "contactMetrics": {
+    "totalContacts": 5000,
+    "pending": 1000,
+    "queued": 50,
+    "calling": 25,
+    "pendingRetry": 200,
+    "completed": 3500,
+    "failed": 200,
+    "skipped": 25,
+    "reachRate": 70.0
+  },
+
+  "callMetrics": {
+    "totalCalls": 6200,
+    "answered": 4000,
+    "completed": 3500,
+    "voicemail": 500,
+    "noAnswer": 1500,
+    "busy": 400,
+    "rejected": 100,
+    "failed": 200,
+    "answerRate": 64.52,
+    "completionRate": 87.5
+  }
+}
+```
+
+## Effective status
+
+The `effectiveStatus` includes computed pause window state:
+
+| Status | Description |
+|--------|-------------|
+| `scheduled` | Waiting for start time |
+| `running` | Actively processing |
+| `paused_manual` | User explicitly paused |
+| `paused_window` | In a pause window |
+| `completed` | All contacts processed |
+| `stopped` | Reached stop time |
+| `cancelled` | Manually cancelled |
+
+## Contact metrics
+
+Metrics aggregated from unique contacts:
+
+| Metric | Description |
+|--------|-------------|
+| `totalContacts` | Audience size at launch |
+| `pending` | Waiting to be called |
+| `queued` | In call queue |
+| `calling` | Currently on call |
+| `pendingRetry` | Waiting for retry |
+| `completed` | Successfully reached |
+| `failed` | All retries exhausted |
+| `skipped` | Skipped (cancelled, stopped) |
+| `reachRate` | `completed / totalContacts × 100` |
+
+## Call metrics
+
+Metrics aggregated from all call attempts:
+
+| Metric | Description |
+|--------|-------------|
+| `totalCalls` | All call attempts |
+| `answered` | Calls that connected |
+| `completed` | Flow completed successfully |
+| `voicemail` | Voicemail detected |
+| `noAnswer` | Ring timeout |
+| `busy` | Busy signal |
+| `rejected` | Call rejected |
+| `failed` | System/network error |
+| `answerRate` | `answered / totalCalls × 100` |
+| `completionRate` | `completed / answered × 100` |
+
+<Note>
+Call metrics can exceed contact count due to retries. For example, 1000 contacts with 2 retries can generate up to 3000 calls.
+</Note>
+
+## Call history
+
+Get paginated call history for an execution:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/calls?page=1&limit=20" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "callId": "call-uuid",
+      "contactId": "contact-uuid",
+      "from": "+212500000001",
+      "to": "+212612345678",
+      "direction": "outbound",
+      "attempt": 1,
+      "status": "completed",
+      "outcome": "completed",
+      "startedAt": "2025-01-20T09:15:00.000Z",
+      "endedAt": "2025-01-20T09:15:45.000Z",
+      "durationMs": 45000
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 6200,
+    "totalPages": 310
+  }
+}
+```
+
+### Filter by status
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/calls?status=completed" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Attempt breakdown
+
+Get statistics broken down by attempt number:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/breakdown \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "perAttempt": [
+    {
+      "attemptNumber": 1,
+      "callsAttempted": 5000,
+      "callsAnswered": 3200,
+      "callsCompleted": 2800,
+      "callsVoicemail": 400,
+      "callsNoAnswer": 1200,
+      "callsFailed": 600,
+      "answeredPercentage": 64.0,
+      "completedPercentage": 56.0,
+      "averageDurationMs": 42000
+    },
+    {
+      "attemptNumber": 2,
+      "callsAttempted": 1200,
+      "callsAnswered": 800,
+      "callsCompleted": 700,
+      "answeredPercentage": 66.67,
+      "averageDurationMs": 38000
+    }
+  ],
+  "total": {
+    "attemptNumber": 0,
+    "callsAttempted": 6200,
+    "callsAnswered": 4000,
+    "callsCompleted": 3500,
+    "answeredPercentage": 64.52,
+    "averageDurationMs": 40500
+  }
+}
+```
+
+## Node execution statistics
+
+Get statistics for each node in the flow:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/node-stats \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "nodes": [
+    {
+      "nodeId": "dial-1",
+      "nodeType": "dial",
+      "nodeLabel": "Dial Contact",
+      "uniqueCalls": 6200,
+      "totalExecutions": 6200,
+      "percentage": 100.0
+    },
+    {
+      "nodeId": "play-welcome",
+      "nodeType": "play",
+      "nodeLabel": "Welcome Message",
+      "uniqueCalls": 4000,
+      "totalExecutions": 4000,
+      "percentage": 64.52
+    },
+    {
+      "nodeId": "dtmf-menu",
+      "nodeType": "dtmf",
+      "nodeLabel": "Main Menu",
+      "uniqueCalls": 3800,
+      "totalExecutions": 4200,
+      "percentage": 61.29,
+      "dtmfBreakdown": {
+        "1": 2000,
+        "2": 1200,
+        "3": 600
+      },
+      "dtmfPercentages": {
+        "1": 52.63,
+        "2": 31.58,
+        "3": 15.79
+      }
+    }
+  ],
+  "totalCalls": 6200,
+  "completedCalls": 3500,
+  "completionRate": 56.45
+}
+```
+
+### Understanding node stats
+
+- **uniqueCalls**: Number of different calls that executed this node
+- **totalExecutions**: Total times the node was executed (includes loops)
+- **percentage**: Percentage of total calls that reached this node
+- **dtmfBreakdown**: For DTMF nodes, shows digit distribution
+
+<Note>
+Node stats are not a traditional funnel because call flows can branch and loop. We report unique calls per node, not drop-off rates.
+</Note>
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
+  Managing executions.
+</Card>
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Creating campaigns.
+</Card>
+
+<Card title="Call Reports" icon="file-lines" href="/features/call-reports">
+  Individual call reports.
+</Card>
+
+</CardGroup>

@@ -1,0 +1,345 @@
+---
+title: "Handling Failed Calls"
+description: "Improve your connection rate with smart retry strategies"
+---
+
+Improving your connection rate is crucial for campaign success. This guide covers why calls fail, how to configure retries effectively, and how to analyze your results.
+
+## Why calls fail
+
+Understanding failure reasons helps you configure better retries:
+
+| Outcome | Cause | Retry helps? |
+|---------|-------|--------------|
+| Busy | Recipient on another call | Yes, likely |
+| No Answer | Recipient unavailable | Yes, try different time |
+| Rejected | Recipient declined call | Maybe, depends on reason |
+| Voicemail | Machine answered | Depends on goal |
+| Network Error | Technical issue | Yes, usually temporary |
+
+## Measuring your baseline
+
+Before optimizing, measure your current performance:
+
+```bash
+curl -X GET /program-executions/EXECUTION_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Calculate your connection rate:
+
+```
+Connection Rate = contactsCompleted / totalContacts × 100
+```
+
+Typical benchmarks:
+- **First attempt**: 20-40% connection rate
+- **With 1 retry**: 30-50%
+- **With 2-3 retries**: 40-60%
+
+Your results will vary based on audience, timing, and industry.
+
+## Choosing a retry strategy
+
+### No retries
+
+```json
+{ "type": "none" }
+```
+
+**Use when:**
+- Testing flows
+- One-shot notifications
+- You'll handle retries externally
+- Very time-sensitive messages
+
+### Fixed delay
+
+```json
+{
+  "type": "fixed_delay",
+  "delayMinutes": 30,
+  "maxRetries": 2
+}
+```
+
+**Use when:**
+- Standard campaigns
+- Predictable retry timing needed
+- Consistent recipient behavior expected
+
+**Recommended settings:**
+
+| Urgency | Delay | Max Retries | Total Attempts |
+|---------|-------|-------------|----------------|
+| High | 15 min | 3-4 | 4-5 |
+| Medium | 30-60 min | 2-3 | 3-4 |
+| Low | 120+ min | 1-2 | 2-3 |
+
+### Scheduled
+
+```json
+{
+  "type": "scheduled",
+  "retryDates": [
+    "2025-01-20T10:00:00Z",
+    "2025-01-20T15:00:00Z",
+    "2025-01-21T10:00:00Z"
+  ]
+}
+```
+
+**Use when:**
+- Different times of day might work better
+- Compliance requires specific timing
+- Multi-day campaigns
+- Weekend/weekday differences matter
+
+## Optimizing retry timing
+
+### Finding the best times
+
+Track which retry times produce the best results:
+
+```
+Morning (9-11 AM): Often best for business contacts
+Midday (12-2 PM): Lower answer rates (lunch)
+Afternoon (2-5 PM): Good for most audiences
+Evening (5-8 PM): Best for consumer contacts
+```
+
+### Day of week patterns
+
+- **Monday**: Often busy, moderate answer rates
+- **Tuesday-Thursday**: Generally best days
+- **Friday**: Lower afternoon rates
+- **Weekend**: Varies widely by audience
+
+### Spacing your retries
+
+```
+Attempt 1: Campaign start
+Attempt 2: +30-60 minutes
+Attempt 3: Different time of day
+Attempt 4: Next day
+```
+
+This gives you coverage across different availability patterns.
+
+## Combining retries with pause windows
+
+Retries respect pause windows. Configure them together:
+
+```json
+{
+  "retryStrategy": {
+    "type": "fixed_delay",
+    "delayMinutes": 60,
+    "maxRetries": 3
+  },
+  "pauseWindows": {
+    "monday": [
+      { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } },
+      { "startAt": { "hour": 18, "minute": 0 }, "endAt": { "hour": 23, "minute": 59 } }
+    ]
+  }
+}
+```
+
+This ensures retries don't happen during lunch or after hours.
+
+## Analyzing retry results
+
+### Call reports
+
+Get detailed attempt information:
+
+```bash
+curl -X GET /call-report/JOB_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response shows all attempts:
+
+```json
+{
+  "attempts": [
+    { "attempt": 1, "outcome": "busy", "call": { "status": "busy" } },
+    { "attempt": 2, "outcome": "no_answer", "call": { "status": "no_answer" } },
+    { "attempt": 3, "outcome": "completed", "call": { "status": "completed" } }
+  ]
+}
+```
+
+### Metrics to track
+
+**Per-attempt metrics:**
+- Connection rate per attempt number
+- Time of day correlation
+- Day of week correlation
+- Outcome distribution
+
+**Campaign metrics:**
+- Overall connection rate
+- Average attempts needed
+- Retry conversion rate (failed → success)
+
+### Retry conversion analysis
+
+Calculate how effective your retries are:
+
+```
+Retry Conversion Rate = (Contacts completed after retry) / (Contacts retried) × 100
+```
+
+If your retry conversion rate is low (less than 10%), consider:
+- Different retry timing
+- Fewer retries (save resources)
+- Different audience segmentation
+
+## Handling persistent failures
+
+Some contacts never connect. After exhausting retries:
+
+1. **Export failed contacts**
+2. **Analyze patterns**
+   - Same phone number format?
+   - Specific regions?
+   - Certain times?
+3. **Take action**
+   - Remove invalid numbers
+   - Try alternative channels (SMS, email)
+   - Flag for manual follow-up
+
+### Identifying patterns
+
+```
+Failed contacts by outcome:
+- 60% no_answer → Try evening hours
+- 30% busy → More retries might help
+- 10% rejected → Likely wrong numbers
+```
+
+## A/B testing retry strategies
+
+Test different strategies to find what works:
+
+### Test setup
+
+1. Split your audience into test groups
+2. Create separate programs with different strategies
+3. Run simultaneously
+4. Compare results
+
+### Example comparison
+
+**Group A:**
+```json
+{ "type": "fixed_delay", "delayMinutes": 30, "maxRetries": 2 }
+```
+
+**Group B:**
+```json
+{ "type": "fixed_delay", "delayMinutes": 60, "maxRetries": 3 }
+```
+
+**Group C:**
+```json
+{
+  "type": "scheduled",
+  "retryDates": ["2025-01-20T15:00:00Z", "2025-01-21T10:00:00Z"]
+}
+```
+
+### Measuring results
+
+After campaigns complete, compare:
+
+| Group | Connection Rate | Avg Attempts | Resource Usage |
+|-------|-----------------|--------------|----------------|
+| A | 45% | 1.8 | 180 calls |
+| B | 52% | 2.4 | 240 calls |
+| C | 48% | 2.1 | 210 calls |
+
+Choose based on your priorities (connection rate vs. efficiency).
+
+## Advanced techniques
+
+### Progressive retry spacing
+
+Increase delay between attempts:
+
+```json
+{
+  "type": "scheduled",
+  "retryDates": [
+    "2025-01-20T10:30:00Z",
+    "2025-01-20T12:00:00Z",
+    "2025-01-20T15:00:00Z"
+  ]
+}
+```
+
+This schedules retries at +30 min, +90 min, and +180 min intervals.
+
+Useful when you don't want to seem aggressive.
+
+### Time-zone aware scheduling
+
+For contacts across time zones:
+
+1. Segment audience by region
+2. Create separate programs
+3. Schedule based on local time
+
+### Outcome-based routing
+
+Use flow conditions to handle voicemail differently:
+
+```json
+{
+  "type": "dial",
+  "config": { "enableAMD": true },
+  "outputs": {
+    "onAnswer": "human-flow",
+    "onVoicemail": "leave-message"
+  }
+}
+```
+
+This routes voicemail to leave a message instead of triggering a retry.
+
+## Best practices summary
+
+1. **Start with moderate retries** - 2-3 retries, 30-60 minute delay
+2. **Use pause windows** - Respect recipient time
+3. **Track your metrics** - Measure before and after changes
+4. **Test different approaches** - A/B test strategies
+5. **Analyze failures** - Understand why contacts don't connect
+6. **Iterate** - Continuously improve based on data
+
+## Common mistakes
+
+- **Too many retries** - Annoying recipients, wasting resources
+- **Retrying too quickly** - Situation hasn't changed
+- **Ignoring time zones** - Calling at inappropriate hours
+- **Not measuring** - Can't improve what you don't track
+- **One strategy for all** - Different audiences need different approaches
+
+## Next steps
+
+<CardGroup cols="2">
+
+<Card title="Retry Strategies" icon="rotate" href="/features/retry-strategies">
+  Complete configuration reference.
+</Card>
+
+<Card title="Pause Windows" icon="clock" href="/features/pause-windows">
+  Timing controls.
+</Card>
+
+<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
+  Monitoring progress.
+</Card>
+
+</CardGroup>

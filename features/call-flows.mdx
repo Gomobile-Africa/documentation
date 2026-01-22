@@ -1,0 +1,534 @@
+---
+title: "Call Flows"
+description: "Detailed reference for building call flows with nodes"
+---
+
+Call flows are the heart of Gomobile. They define exactly what happens during each call—from the initial dial to the final hangup.
+
+## Flow structure
+
+Every flow has:
+
+- A **start node** - Where execution begins
+- **Intermediate nodes** - Actions like playing audio or collecting input
+- **Terminal nodes** - Where the call ends (hangup)
+- **Connections** - Links between nodes based on outcomes
+
+## Node reference
+
+### Dial Node
+
+Initiates an outbound call to the contact.
+
+```json
+{
+  "id": "dial-1",
+  "type": "dial",
+  "label": "Call Customer",
+  "config": {
+    "timeout": 30000,
+    "enableAMD": true
+  },
+  "outputs": {
+    "onAnswer": "play-greeting",
+    "onVoicemail": "play-vm-message",
+    "onNoAnswer": "hangup-na",
+    "onBusy": "hangup-busy",
+    "onRejected": "hangup-rejected",
+    "onError": "hangup-error"
+  }
+}
+```
+
+| Config      | Type    | Default | Description                        |
+| ----------- | ------- | ------- | ---------------------------------- |
+| `timeout`   | number  | 30000   | Ring timeout in milliseconds       |
+| `enableAMD` | boolean | true    | Enable answering machine detection |
+
+| Output        | Trigger                          |
+| ------------- | -------------------------------- |
+| `onAnswer`    | Human answered (or AMD disabled) |
+| `onVoicemail` | Machine detected (AMD enabled)   |
+| `onNoAnswer`  | Ring timeout reached             |
+| `onBusy`      | Busy signal                      |
+| `onRejected`  | User rejected during ring        |
+| `onError`     | System error                     |
+
+### Play Node
+
+Plays audio to the recipient.
+
+```json
+{
+  "id": "play-greeting",
+  "type": "play",
+  "label": "Welcome Message",
+  "config": {
+    "audioItems": [
+      { "type": "audioFile", "audioId": "welcome-audio-id" },
+      {
+        "type": "number",
+        "value": {
+          "source": "customAttribute",
+          "attributeName": "accountBalance"
+        },
+        "mode": "full",
+        "language": "ar"
+      }
+    ],
+    "allowBargeIn": true,
+    "bargeInDtmfNodeId": "dtmf-collect"
+  },
+  "outputs": {
+    "onComplete": "next-node",
+    "onError": "hangup-error"
+  }
+}
+```
+
+Audio item types:
+
+| Type        | Purpose                 | Example           |
+| ----------- | ----------------------- | ----------------- |
+| `audioFile` | Pre-recorded audio      | Welcome messages  |
+| `number`    | Dynamic number playback | Account balances  |
+| `date`      | Dynamic date playback   | Appointment dates |
+| `word`      | Dictionary word lookup  | Custom vocabulary |
+
+### DTMF Node
+
+Collects keypad input from the recipient.
+
+```json
+{
+  "id": "collect-choice",
+  "type": "dtmf",
+  "label": "Get User Choice",
+  "config": {
+    "mode": "single_digit",
+    "variable": "userChoice",
+    "timeout": 10000,
+    "singleDigitConfig": {
+      "allowedDigits": ["1", "2", "3"]
+    },
+    "retry": {
+      "maxRetries": 2,
+      "invalidAudioId": "invalid-choice-audio",
+      "timeoutAudioId": "timeout-audio"
+    }
+  },
+  "outputs": {
+    "branches": {
+      "1": "option-one",
+      "2": "option-two",
+      "3": "option-three"
+    },
+    "onSuccess": "next-node",
+    "onTimeout": "hangup-timeout",
+    "onInvalid": "hangup-invalid",
+    "onMaxRetries": "hangup-max-retries",
+    "onError": "hangup-error",
+    "default": "hangup-fallback"
+  }
+}
+```
+
+Modes:
+
+| Mode           | Use case                              |
+| -------------- | ------------------------------------- |
+| `single_digit` | Menu selections (press 1, 2, 3...)    |
+| `multi_digit`  | Numeric input (account numbers, PINs) |
+
+Multi-digit configuration:
+
+```json
+{
+  "mode": "multi_digit",
+  "multiDigitConfig": {
+    "minDigits": 4,
+    "maxDigits": 10,
+    "terminators": ["#"],
+    "interDigitTimeout": 3000
+  }
+}
+```
+
+### Record Node
+
+Records the recipient's voice.
+
+```json
+{
+  "id": "record-feedback",
+  "type": "record",
+  "label": "Record Feedback",
+  "config": {
+    "variable": "feedbackRecordingId",
+    "maxDurationMs": 60000,
+    "silenceThresholdMs": 3000,
+    "beep": true
+  },
+  "outputs": {
+    "onComplete": "play-thank-you",
+    "onTimeout": "hangup-timeout",
+    "onError": "hangup-error"
+  }
+}
+```
+
+The recording ID is stored in the specified variable for later retrieval.
+
+### Condition Node
+
+Branches based on variable values.
+
+```json
+{
+  "id": "check-balance",
+  "type": "condition",
+  "label": "Check If Overdue",
+  "config": {
+    "expression": {
+      "type": "simple",
+      "variable": {
+        "type": "custom_attribute",
+        "name": "daysOverdue"
+      },
+      "operator": "gt",
+      "value": 30
+    }
+  },
+  "outputs": {
+    "onTrue": "play-urgent-message",
+    "onFalse": "play-reminder-message",
+    "onError": "hangup-error"
+  }
+}
+```
+
+Operators:
+
+| Operator     | Meaning               |
+| ------------ | --------------------- |
+| `eq`         | Equals                |
+| `neq`        | Not equals            |
+| `gt`         | Greater than          |
+| `lt`         | Less than             |
+| `gte`        | Greater than or equal |
+| `lte`        | Less than or equal    |
+| `contains`   | String contains       |
+| `startsWith` | String starts with    |
+| `endsWith`   | String ends with      |
+
+Complex conditions with AND/OR:
+
+```json
+{
+  "expression": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "simple",
+        "variable": { "type": "custom_attribute", "name": "balance" },
+        "operator": "gt",
+        "value": 0
+      },
+      {
+        "type": "simple",
+        "variable": { "type": "custom_attribute", "name": "status" },
+        "operator": "eq",
+        "value": "active"
+      }
+    ]
+  }
+}
+```
+
+### Set Variable Node
+
+Stores a value for use later in the flow.
+
+```json
+{
+  "id": "set-flag",
+  "type": "set_variable",
+  "label": "Mark as Contacted",
+  "config": {
+    "variable": "wasContacted",
+    "value": true
+  },
+  "outputs": {
+    "onSuccess": "next-node",
+    "onError": "hangup-error"
+  }
+}
+```
+
+### Collect Audio Node
+
+Records audio with optional speech-to-text transcription.
+
+```json
+{
+  "id": "collect-feedback",
+  "type": "collect_audio",
+  "label": "Record Customer Feedback",
+  "config": {
+    "maxDuration": 60,
+    "firstSilenceTimeout": 5,
+    "silenceDetection": true,
+    "silenceDuration": 2,
+    "beep": true,
+    "maxRetry": 2,
+    "fallbackAudio": { "type": "audioFile", "audioId": "please-speak-audio" },
+    "recordingIdVariable": "feedbackRecordingId",
+    "transcription": true,
+    "languages": ["ar-MA", "fr-FR"],
+    "transcriptionVariable": "feedbackText"
+  },
+  "outputs": {
+    "onComplete": "process-feedback",
+    "onMaxDuration": "thank-you",
+    "onNoSpeech": "hangup-no-speech",
+    "onError": "hangup-error"
+  }
+}
+```
+
+| Config | Type | Default | Description |
+|--------|------|---------|-------------|
+| `maxDuration` | number | - | Max recording duration in seconds |
+| `firstSilenceTimeout` | number | - | Seconds to wait for user to start speaking |
+| `silenceDetection` | boolean | true | Stop on silence |
+| `silenceDuration` | number | 2 | Silence duration to trigger stop (seconds) |
+| `beep` | boolean | false | Play beep before recording |
+| `maxRetry` | number | 0 | Retry attempts if no speech detected |
+| `transcription` | boolean | false | Enable speech-to-text |
+| `languages` | string[] | `["auto"]` | Transcription languages (`ar-MA`, `fr-FR`, `en-US`) |
+
+| Output | Trigger |
+|--------|---------|
+| `onComplete` | Recording completed successfully |
+| `onMaxDuration` | Max duration reached |
+| `onNoSpeech` | No speech detected after retries |
+| `onError` | System error |
+
+### Say Node (Text-to-Speech)
+
+Converts text to speech with template variable support.
+
+```json
+{
+  "id": "say-greeting",
+  "type": "say",
+  "label": "Personalized Greeting",
+  "config": {
+    "text": "Hello {{ $contact.firstName }}, your balance is {{ $variables.balance }} dirhams.",
+    "language": "ar-MA",
+    "gender": "female",
+    "tone": "friendly",
+    "allowBargeIn": true,
+    "bargeInDtmfNodeId": "dtmf-menu"
+  },
+  "outputs": {
+    "onComplete": "next-node",
+    "onError": "hangup-error"
+  }
+}
+```
+
+| Config | Type | Default | Description |
+|--------|------|---------|-------------|
+| `text` | string | - | Template text with `{{ $source.path }}` placeholders |
+| `language` | string | - | TTS language: `ar-MA`, `ar`, `fr`, `en` |
+| `gender` | string | `female` | Voice gender: `male` or `female` |
+| `tone` | string | `neutral` | Voice tone: `neutral`, `friendly`, `formal` |
+| `allowBargeIn` | boolean | false | Allow DTMF interruption |
+
+**Template syntax:**
+- `{{ $contact.firstName }}` - Contact fields
+- `{{ $contact.customAttributes.balance }}` - Custom attributes
+- `{{ $variables.code }}` - Flow variables
+- `{{ $call.from }}` - Call info
+
+### SMS Node
+
+Sends an SMS to the contact during the call flow.
+
+```json
+{
+  "id": "send-confirmation",
+  "type": "sms",
+  "label": "Send Confirmation SMS",
+  "config": {
+    "messageTemplate": "Your confirmation code is {{ $variables.code }}. Thank you for calling!",
+    "senderId": "+212600000000"
+  },
+  "outputs": {
+    "onComplete": "next-node",
+    "onError": "continue-flow"
+  }
+}
+```
+
+| Config | Type | Description |
+|--------|------|-------------|
+| `messageTemplate` | string | Message with `{{ $source.path }}` placeholders |
+| `senderId` | string | Sender ID (phone number or alphanumeric) |
+
+<Note>
+SMS failures are non-fatal—the call continues even if the SMS fails to send.
+</Note>
+
+### Update Contact Node
+
+Updates a contact's custom attribute during the call.
+
+```json
+{
+  "id": "update-tier",
+  "type": "update_contact",
+  "label": "Update Customer Tier",
+  "config": {
+    "attributeName": "membership_tier",
+    "value": "gold"
+  },
+  "outputs": {
+    "onComplete": "next-node",
+    "onError": "continue-flow"
+  }
+}
+```
+
+Using dynamic values:
+
+```json
+{
+  "config": {
+    "attributeName": "last_contact_score",
+    "value": "{{ $variables.calculated_score }}"
+  }
+}
+```
+
+| Config | Type | Description |
+|--------|------|-------------|
+| `attributeName` | string | Custom attribute to update |
+| `value` | string/number/boolean | Static value or template |
+
+<Note>
+Update failures are non-fatal—the call continues even if the update fails.
+</Note>
+
+### Hangup Node
+
+Ends the call. This is a terminal node with no outputs.
+
+```json
+{
+  "id": "hangup-success",
+  "type": "hangup",
+  "label": "End Call - Success",
+  "config": {
+    "reason": "Call completed successfully"
+  }
+}
+```
+
+## Variable system
+
+Flows can access several types of variables:
+
+### System variables
+
+Automatically available during execution:
+
+| Variable             | Description                   |
+| -------------------- | ----------------------------- |
+| `sys.callId`         | Unique call identifier        |
+| `sys.callStatus`     | Current call status           |
+| `sys.callDirection`  | `inbound` or `outbound`       |
+| `sys.answeredBy`     | `human` or `machine`          |
+| `sys.contactId`      | Contact being called          |
+| `sys.contactPhone`   | Contact's phone number        |
+| `sys.contactName`    | Contact's full name           |
+| `sys.organizationId` | Your organization ID          |
+| `sys.programId`      | Program ID (if campaign call) |
+
+### Contact fields
+
+Standard contact properties:
+
+```json
+{ "source": "contactField", "field": "firstName" }
+{ "source": "contactField", "field": "lastName" }
+{ "source": "contactField", "field": "city" }
+```
+
+### Custom attributes
+
+Custom fields defined on contacts:
+
+```json
+{ "source": "customAttribute", "attributeName": "accountBalance" }
+{ "source": "customAttribute", "attributeName": "preferredLanguage" }
+```
+
+### Flow variables
+
+Variables set during execution:
+
+```json
+{ "source": "variable", "variableName": "userChoice" }
+{ "source": "variable", "variableName": "recordingId" }
+```
+
+## Barge-in
+
+Allow recipients to interrupt audio playback by pressing a key:
+
+```json
+{
+  "type": "play",
+  "config": {
+    "audioItems": [{ "type": "audioFile", "audioId": "message-id" }],
+    "allowBargeIn": true,
+    "bargeInDtmfNodeId": "dtmf-collect"
+  }
+}
+```
+
+When barge-in occurs:
+
+1. Audio playback stops immediately
+2. The pressed digit is captured
+3. Flow jumps to the specified DTMF node
+4. The digit is available as the first input
+
+## Best practices
+
+1. **Always handle errors** - Every node should have an error path
+2. **Use descriptive labels** - Makes debugging easier
+3. **Keep flows focused** - One flow per use case
+4. **Test incrementally** - Verify each node works before adding more
+5. **Document complex logic** - Use the description field
+6. **Consider timeout handling** - Don't leave users hanging
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Audio Management" icon="volume-high" href="/features/audio-management">
+  Managing audio files.
+</Card>
+
+<Card title="Dictionaries" icon="book" href="/features/dictionaries">
+  Dynamic content playback.
+</Card>
+
+<Card title="Flows Overview" icon="diagram-project" href="/core-concepts/flows">
+  Core concepts overview.
+</Card>
+
+</CardGroup>

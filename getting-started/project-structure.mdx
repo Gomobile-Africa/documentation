@@ -1,0 +1,133 @@
+---
+title: "Project Structure"
+description: "Understanding how Gomobile organizes resources helps you design better campaigns"
+---
+
+Understanding how Gomobile organizes resources helps you design better campaigns. This page explains the hierarchy and relationships between different entities.
+
+## The big picture
+
+Everything in Gomobile lives under an organization. Here's how the pieces connect:
+
+```
+Organization
+├── Users (people who can access the platform)
+├── Contacts (people you call)
+├── Audiences (groups of contacts)
+├── Flows (call logic templates)
+├── Programs (campaign configurations)
+│   └── Executions (running instances of programs)
+├── Audio Files (recorded messages)
+├── Dictionaries (word-to-audio mappings)
+└── Custom Attributes (extra contact fields)
+```
+
+## Organizations
+
+An organization is your top-level container. It represents your company or team and isolates your data from other users of the platform.
+
+Key properties:
+
+- **Name** - Your company or team name
+- **Slug** - A unique URL-friendly identifier
+- **Plan** - Your subscription tier (trial, free, basic, advanced, enterprise)
+- **Timezone** - Default timezone for scheduling
+- **Currency** - For billing purposes
+
+Most organizations have one-to-many users who share access to the same contacts, flows, and programs.
+
+## Users and roles
+
+Users belong to an organization and can perform actions based on their permissions. Currently, Gomobile supports:
+
+- **Regular users** - Can manage contacts, audiences, flows, and programs
+- **Staff** - Additional administrative capabilities
+
+Each user can be issued an API key for programmatic access. [Request an API key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) to get started.
+
+## Contacts and audiences
+
+**Contacts** are the people you call. At minimum, a contact needs a phone number. You can also store:
+
+- Name (first, last, or full)
+- Email address
+- Location (address, city, state, zip)
+- Custom attributes (any additional data you need)
+
+**Audiences** are groups of contacts. Think of them as segments or lists. A contact can belong to multiple audiences, and audiences can overlap.
+
+This separation gives you flexibility:
+
+- Create contacts once, reuse across campaigns
+- Segment by any criteria (region, customer type, etc.)
+- Update contact info without recreating audiences
+
+## Flows
+
+Flows define what happens during a call. They're built from nodes connected by outputs:
+
+- **Dial** - Places the outbound call
+- **Play** - Plays audio to the recipient
+- **DTMF** - Collects keypad input
+- **Record** - Records the recipient's voice
+- **Condition** - Branches based on variables
+- **Set Variable** - Stores data for later use
+- **Hangup** - Ends the call
+
+Flows are reusable templates. Create one flow and use it across multiple programs.
+
+## Programs and executions
+
+**Programs** are campaign configurations. They combine:
+
+- An audience (who to call)
+- A flow (what to do during the call)
+- A schedule (when to start/stop)
+- A DID pool (which numbers to call from)
+- A retry strategy (how to handle failures)
+- Pause windows (when not to call)
+
+**Executions** are running instances of programs. When you launch a program, you create an execution. The execution tracks progress:
+
+- How many contacts have been called
+- How many succeeded or failed
+- Current status (running, paused, completed)
+
+You can run multiple executions of the same program—useful for recurring campaigns.
+
+## Audio and dictionaries
+
+**Audio files** are pre-recorded messages you can play during calls. Upload WAV files and reference them in your flows.
+
+**Dictionaries** map words or numbers to audio files. They're essential for dynamic content:
+
+- Read phone numbers digit by digit
+- Announce dates in the right format
+- Support multiple languages (Arabic, French, etc.)
+
+## Custom attributes
+
+Standard contact fields don't cover every use case. Custom attributes let you store additional data:
+
+- Account balances
+- Subscription status
+- Preferred language
+- Any business-specific information
+
+Define attributes at the organization level, then set values on individual contacts. You can reference these values in flows for personalized call experiences.
+
+## Next steps
+
+Now that you understand how Gomobile is structured:
+
+<CardGroup cols="2">
+
+<Card title="Core Concepts" icon="book" href="/core-concepts/overview">
+  Deep dives into each entity.
+</Card>
+
+<Card title="Building Your First Campaign" icon="rocket" href="/guides/building-your-first-campaign">
+  Practical walkthrough.
+</Card>
+
+</CardGroup>

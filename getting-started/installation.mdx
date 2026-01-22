@@ -1,0 +1,66 @@
+---
+title: "Installation"
+description: "Getting started with Gomobile takes just a few minutes"
+---
+
+Getting started with Gomobile takes just a few minutes. This guide covers obtaining credentials and verifying your connection to the API.
+
+## Get your API credentials
+
+To access the Gomobile API, you'll need API credentials from our team.
+
+<Info>
+**Ready to get started?** [Request your API key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) and our team will set you up within 24 hours.
+</Info>
+
+Once you receive your credentials, you're ready to start making API calls.
+
+## Verify your setup
+
+After receiving your API key, verify everything is working by fetching your profile:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/users/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+You should see your user details along with your organization information.
+
+## Environment setup
+
+We recommend storing your credentials as environment variables:
+
+```bash
+# Add to your .bashrc, .zshrc, or equivalent
+export GOMOBILE_API_URL="https://api.gomobile.ma/api"
+export GOMOBILE_API_KEY="your-api-key"
+```
+
+For production applications, consider using a secrets manager or environment-specific configuration.
+
+## API base URL
+
+All API requests go to:
+
+```
+https://api.gomobile.ma/api
+```
+
+For testing and development, you may have access to a staging environment. Check with your administrator for the appropriate URL.
+
+## SDK options
+
+While Gomobile provides a REST API that works with any HTTP client, we're working on official SDKs for popular languages:
+
+- **JavaScript/TypeScript** - Coming soon
+- **Python** - Coming soon
+
+In the meantime, you can use any HTTP library in your preferred language.
+
+## Next steps
+
+Now that you're set up, learn how authentication works in detail:
+
+<Card title="Authentication" icon="key" href="/getting-started/authentication">
+  Understand tokens and API keys
+</Card>

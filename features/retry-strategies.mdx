@@ -1,0 +1,270 @@
+---
+title: "Retry Strategies"
+description: "Configure how failed calls are retried"
+---
+
+Not every call connects on the first try. Retry strategies tell Gomobile how to handle failed calls—whether to try again, when, and how many times.
+
+## Why retries matter
+
+Phone calls fail for many reasons:
+
+- Busy signal
+- No answer
+- Network issues
+- Voicemail (when you need a human)
+- Temporary phone problems
+
+Without retries, these contacts are lost. With smart retries, you can significantly improve your connection rate.
+
+## Strategy types
+
+Gomobile supports three retry strategies:
+
+| Strategy | Best for |
+|----------|----------|
+| `none` | One-shot notifications, testing |
+| `fixed_delay` | Most campaigns, predictable timing |
+| `scheduled` | Specific time windows, compliance requirements |
+
+## No retries
+
+The simplest option—each contact gets one call attempt:
+
+```json
+{
+  "retryStrategy": {
+    "type": "none"
+  }
+}
+```
+
+Use this when:
+- You're testing a flow
+- The message isn't time-sensitive
+- You'll handle retries externally
+- One attempt is all you need
+
+## Fixed delay retries
+
+Retry failed calls after a consistent delay:
+
+```json
+{
+  "retryStrategy": {
+    "type": "fixed_delay",
+    "delayMinutes": 30,
+    "maxRetries": 3
+  }
+}
+```
+
+How it works:
+1. First attempt fails
+2. Wait 30 minutes
+3. Second attempt (retry 1)
+4. If that fails, wait another 30 minutes
+5. Third attempt (retry 2)
+6. If that fails, wait 30 minutes
+7. Fourth attempt (retry 3)
+8. If that fails, contact marked as failed
+
+<Info>
+With `maxRetries: 3`, a contact gets up to 4 total attempts.
+</Info>
+
+Choosing delay times:
+
+| Delay | Use case |
+|-------|----------|
+| 5-15 min | Urgent messages, short campaigns |
+| 30-60 min | Standard campaigns |
+| 120+ min | Less urgent, spread throughout day |
+
+## Scheduled retries
+
+Retry at specific times:
+
+```json
+{
+  "retryStrategy": {
+    "type": "scheduled",
+    "retryDates": [
+      "2025-01-20T14:00:00Z",
+      "2025-01-21T10:00:00Z",
+      "2025-01-22T16:00:00Z"
+    ]
+  }
+}
+```
+
+How it works:
+1. First attempt (at program start time) fails
+2. Next attempt at 2025-01-20T14:00:00Z
+3. If that fails, next attempt at 2025-01-21T10:00:00Z
+4. If that fails, next attempt at 2025-01-22T16:00:00Z
+5. If that fails, contact marked as failed
+
+The number of dates equals the number of retry attempts.
+
+When to use scheduled retries:
+- Different times of day might work better
+- Spreading attempts across multiple days
+- Compliance requirements (max calls per day)
+- Specific business hours
+
+## What triggers a retry?
+
+Retries happen when a call fails to connect meaningfully. This includes:
+
+| Outcome | Triggers retry? |
+|---------|-----------------|
+| Busy | Yes |
+| No answer | Yes |
+| Voicemail (with AMD) | Configurable |
+| Rejected | Yes |
+| Network error | Yes |
+| Human answered, flow completed | No |
+| Human answered, flow error | Depends on error |
+
+Successful calls (human answered and flow completed) don't retry.
+
+## Retry behavior with pause windows
+
+Retries respect pause windows. If a retry is scheduled during a pause window:
+
+1. The retry waits until the pause window ends
+2. Then it proceeds with the call
+
+This ensures you don't accidentally call during inappropriate times.
+
+## Monitoring retry progress
+
+Track retries through the execution counters:
+
+```json
+{
+  "totalContacts": 1000,
+  "contactsCompleted": 650,
+  "contactsFailed": 50,
+  "contactsPending": 280,
+  "contactsInProgress": 20
+}
+```
+
+`contactsPending` includes contacts waiting for retry. As retries process, they move to completed or failed.
+
+## Call reports and retries
+
+The call report API shows all attempts for a contact:
+
+```json
+{
+  "jobId": "job-uuid",
+  "status": "completed",
+  "finalOutcome": "completed",
+  "attempts": [
+    {
+      "attempt": 1,
+      "call": { "status": "busy" },
+      "outcome": "busy"
+    },
+    {
+      "attempt": 2,
+      "call": { "status": "completed" },
+      "outcome": "completed"
+    }
+  ]
+}
+```
+
+This helps you understand:
+- How many attempts were needed
+- What outcomes occurred
+- Time between attempts
+
+## Strategy recommendations
+
+### Standard campaigns
+
+```json
+{
+  "type": "fixed_delay",
+  "delayMinutes": 60,
+  "maxRetries": 2
+}
+```
+
+Three total attempts, one hour apart. Balances persistence with respect.
+
+### Urgent notifications
+
+```json
+{
+  "type": "fixed_delay",
+  "delayMinutes": 15,
+  "maxRetries": 4
+}
+```
+
+Five total attempts, 15 minutes apart. More aggressive for time-sensitive messages.
+
+### Multi-day campaigns
+
+```json
+{
+  "type": "scheduled",
+  "retryDates": [
+    "2025-01-20T10:00:00Z",
+    "2025-01-20T15:00:00Z",
+    "2025-01-21T10:00:00Z",
+    "2025-01-21T15:00:00Z"
+  ]
+}
+```
+
+Morning and afternoon attempts over two days.
+
+### One-shot with external handling
+
+```json
+{
+  "type": "none"
+}
+```
+
+No retries. Export failed contacts and handle them through another process.
+
+## Best practices
+
+1. **Start conservative** - 2-3 retries is usually enough
+2. **Space them out** - Avoid overwhelming recipients
+3. **Respect time zones** - Schedule retries during reasonable hours
+4. **Monitor results** - Track if retries actually help
+5. **Consider the message** - Urgent = more retries, routine = fewer
+6. **Use pause windows** - Combine with retries for best results
+
+## Common mistakes
+
+- **Too many retries** - Annoying and may get numbers flagged
+- **Too short delays** - Recipient situation won't change in 5 minutes
+- **Ignoring time zones** - Retries at 3 AM don't help
+- **No pause windows** - Retrying during lunch hours
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Setting retry strategies.
+</Card>
+
+<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
+  Monitoring retry progress.
+</Card>
+
+<Card title="Pause Windows" icon="clock" href="/features/pause-windows">
+  Controlling when retries happen.
+</Card>
+
+</CardGroup>

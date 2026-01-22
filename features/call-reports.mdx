@@ -1,0 +1,210 @@
+---
+title: "Call Reports"
+description: "Detailed reports for individual calls and call jobs"
+---
+
+Call reports provide detailed information about call execution, including all attempts, events, and flow execution paths.
+
+## Job reports
+
+When you make an ad-hoc call via `/call-requests`, you get a `jobId`. Use it to fetch the complete report:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/call-report/JOB_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "finalOutcome": "completed",
+  "attempts": [
+    {
+      "callId": "1cbdf482-4dac-41ed-a430-2e311add389d",
+      "attempt": 1,
+      "call": {
+        "status": "busy",
+        "direction": "outbound",
+        "from": "+212500000001",
+        "to": "+212612345678",
+        "createdAt": "2025-01-15T10:30:00.000Z",
+        "dialedAt": "2025-01-15T10:30:00.100Z",
+        "terminatedAt": "2025-01-15T10:30:07.000Z"
+      },
+      "outcome": "busy",
+      "flowExecution": {
+        "flowId": "flow-uuid",
+        "flowName": "Payment Reminder",
+        "flowVersion": 1,
+        "executionPath": [
+          {
+            "nodeId": "dial-1",
+            "nodeType": "dial",
+            "nodeLabel": "Dial Contact",
+            "timestamp": "2025-01-15T10:30:00.070Z",
+            "outputPath": "onBusy"
+          }
+        ],
+        "nodeExecutionCount": 1
+      },
+      "events": []
+    },
+    {
+      "callId": "eae26ac8-be39-490b-b9ed-a82e7f4048f6",
+      "attempt": 2,
+      "call": {
+        "status": "completed",
+        "direction": "outbound",
+        "from": "+212500000001",
+        "to": "+212612345678",
+        "createdAt": "2025-01-15T10:35:00.000Z",
+        "dialedAt": "2025-01-15T10:35:00.100Z",
+        "answeredAt": "2025-01-15T10:35:05.000Z",
+        "terminatedAt": "2025-01-15T10:35:45.000Z",
+        "durationMs": 40000
+      },
+      "outcome": "completed",
+      "flowExecution": {
+        "flowId": "flow-uuid",
+        "flowName": "Payment Reminder",
+        "flowVersion": 1,
+        "executionPath": [
+          {
+            "nodeId": "dial-1",
+            "nodeType": "dial",
+            "outputPath": "onAnswer"
+          },
+          {
+            "nodeId": "play-greeting",
+            "nodeType": "play",
+            "outputPath": "onComplete"
+          }
+        ],
+        "nodeExecutionCount": 2
+      },
+      "events": []
+    }
+  ]
+}
+```
+
+## Job status
+
+| Status | Description |
+|--------|-------------|
+| `queued` | Waiting to execute |
+| `active` | Currently executing |
+| `completed` | All attempts finished |
+| `failed` | Job failed to process |
+
+## Individual call reports
+
+Get details for a specific call by its call ID:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/call-report/call/CALL_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+This returns a single `CallAttemptReport` with full details.
+
+## Call details
+
+Each attempt includes call metadata:
+
+| Field | Description |
+|-------|-------------|
+| `status` | Final call status |
+| `direction` | `inbound` or `outbound` |
+| `from` | Caller ID |
+| `to` | Destination number |
+| `createdAt` | When call was created |
+| `dialedAt` | When dial started |
+| `answeredAt` | When call was answered |
+| `terminatedAt` | When call ended |
+| `durationMs` | Call duration in milliseconds |
+
+## Flow execution details
+
+The `flowExecution` object shows exactly what happened during the call:
+
+| Field | Description |
+|-------|-------------|
+| `flowId` | Flow that was executed |
+| `flowName` | Flow name |
+| `flowVersion` | Flow version number |
+| `executionPath` | Nodes executed in order |
+| `finalVariables` | Variable values at end |
+| `nodeExecutionCount` | Total nodes executed |
+
+### Execution path
+
+The `executionPath` array shows each node that executed:
+
+```json
+{
+  "nodeId": "dtmf-menu",
+  "nodeType": "dtmf",
+  "nodeLabel": "Main Menu",
+  "timestamp": "2025-01-15T10:35:10.000Z",
+  "outputPath": "branches.1"
+}
+```
+
+The `outputPath` shows which output was taken (e.g., `onAnswer`, `onBusy`, `branches.1`).
+
+## Event types
+
+The `events` array contains detailed event data:
+
+| Event | Description | Key Data |
+|-------|-------------|----------|
+| `dial` | Outbound dial initiated | `to`, `from`, `timeout` |
+| `answer` | Call answered | `answeredBy`, `ringDurationMs` |
+| `play` | Audio playback completed | `durationMs`, `completedBy` |
+| `record_start` | Recording started | - |
+| `record_stop` | Recording completed | `recordId`, `durationMs` |
+| `dtmf_collected` | DTMF input collected | `digits`, `mode` |
+| `hangup` | Call terminated | `hangupType`, `hangupReason` |
+
+## Program call context
+
+Calls made through programs include additional context:
+
+```json
+{
+  "programId": "program-uuid",
+  "programExecutionId": "execution-uuid",
+  "contactId": "contact-uuid"
+}
+```
+
+These fields are `undefined` for ad-hoc calls.
+
+## Call outcomes
+
+| Outcome | Description |
+|---------|-------------|
+| `completed` | Call answered and flow completed |
+| `voicemail` | Voicemail detected (AMD enabled) |
+| `no_answer` | Ring timeout |
+| `busy` | Busy signal |
+| `rejected` | Call rejected |
+| `failed` | System or network error |
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Ad-hoc Calls" icon="phone" href="/features/ad-hoc-calls">
+  Make individual calls.
+</Card>
+
+<Card title="Execution Reports" icon="chart-bar" href="/features/execution-reports">
+  Campaign-level reporting.
+</Card>
+
+</CardGroup>

@@ -1,0 +1,118 @@
+---
+title: "Troubleshooting Guide"
+description: "Common issues and how to resolve them"
+---
+
+Common issues and how to resolve them.
+
+---
+
+## Authentication Issues
+
+### 401 Unauthorized
+
+- Check if your API key is correct and not expired
+- Verify the header format: `x-api-key: YOUR_API_KEY`
+- Ensure your API key is active (`isActive: true`)
+- Request a new API key if issues persist
+
+### 403 Forbidden
+
+- Your account may lack the required permissions
+- Check if your organization status is `active`
+- Some endpoints require Staff role
+
+---
+
+## Call Issues
+
+### Calls Not Connecting
+
+- Verify the contact's phone number format (E.164)
+- Check if the DID pool has valid numbers
+- Ensure the program has `active` status
+- Review dial timeout settings
+
+### Calls Going to Voicemail
+
+- Enable AMD (`enableAMD: true`) to detect voicemails
+- Configure the `onVoicemail` output in your Dial node
+- Consider calling at different times
+
+### Audio Not Playing
+
+- Verify the audio file exists and is valid
+- Check the `audioId` in your Play node
+- Ensure dictionary entries exist for dynamic content
+
+---
+
+## Program Issues
+
+### Program Won't Start
+
+- Check if `startAt` is in the future
+- Verify the audience is not empty
+- Ensure the program status is `active`
+- Check for existing running executions
+
+### Program Stops Unexpectedly
+
+- `scheduledStopAt` may have been reached
+- All contacts may have been processed
+- Check for errors in the flow
+
+---
+
+## Flow Issues
+
+### Flow Execution Fails
+
+- Validate your flow using `POST /flows/validate`
+- Check for missing node connections
+- Ensure all required outputs have targets
+- Verify variable names are correct
+
+### DTMF Input Not Recognized
+
+- Check `timeout` settings (default: 30000ms)
+- Verify `allowedDigits` configuration
+- Ensure `multiDigitConfig` terminators are correct
+
+---
+
+## Rate Limiting
+
+### 429 Too Many Requests
+
+- Reduce your request frequency
+- Implement exponential backoff
+- Consider batching operations
+
+---
+
+## Contact Issues
+
+### Contacts Not Importing
+
+- Check phone number format (3-20 characters)
+- Verify required fields are present
+- Look for duplicate phone numbers (409 error)
+
+### Invalid Phone Number Errors
+
+- Use E.164 format: `+[country code][number]`
+- Ensure phone is 3-20 characters
+- Remove spaces and special characters
+
+---
+
+## Still Need Help?
+
+1. Check the [FAQ](/help-center/faq) for more answers
+2. Review the [API documentation](/getting-started/overview)
+3. Contact support with:
+   - Organization ID
+   - Error message/code
+   - Steps to reproduce
+   - Timestamp

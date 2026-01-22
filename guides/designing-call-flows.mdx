@@ -1,0 +1,400 @@
+---
+title: "Designing Call Flows"
+description: "Build effective call flows for different scenarios"
+---
+
+Effective call flows balance simplicity with functionality. This guide covers patterns, best practices, and common scenarios to help you design flows that work.
+
+## Flow design principles
+
+### Keep it short
+
+Phone calls should be brief and focused:
+
+- Get to the point quickly
+- Limit menu options (3-4 max)
+- Provide an easy exit
+- Total call time: 30-60 seconds for simple messages
+
+### Handle every outcome
+
+Every node should have paths for all possible results:
+
+```
+Dial
+├── onAnswer → Continue flow
+├── onVoicemail → Leave message or hangup
+├── onNoAnswer → Hangup (retry later)
+├── onBusy → Hangup (retry later)
+├── onRejected → Hangup
+└── onError → Hangup
+```
+
+### Fail gracefully
+
+When things go wrong, don't leave the caller confused:
+
+- Always have error paths
+- End with a polite hangup message
+- Log errors for debugging
+
+## Common patterns
+
+### Simple notification
+
+Just deliver a message, no interaction needed:
+
+```
+Dial → Play Message → Hangup
+```
+
+```json
+{
+  "startNodeId": "dial",
+  "nodes": [
+    {
+      "id": "dial",
+      "type": "dial",
+      "config": { "timeout": 30000, "enableAMD": false },
+      "outputs": { "onAnswer": "play", "default": "hangup" }
+    },
+    {
+      "id": "play",
+      "type": "play",
+      "config": {
+        "audioItems": [{ "type": "audioFile", "audioId": "message" }]
+      },
+      "outputs": { "onComplete": "hangup" }
+    },
+    {
+      "id": "hangup",
+      "type": "hangup",
+      "config": { "reason": "completed", "hangupType": "normal" }
+    }
+  ]
+}
+```
+
+### Menu with options
+
+Collect a response and branch:
+
+```
+Dial → Play Menu → Collect DTMF → Branch by digit → Hangup
+```
+
+Key considerations:
+
+- Repeat the menu if no input received
+- Handle invalid inputs gracefully
+- Provide a "repeat" option if menu is complex
+
+### Confirmation flow
+
+Get explicit confirmation before proceeding:
+
+```
+Dial → Play Question → Collect DTMF
+         ↓ "1" = Yes          ↓ "2" = No
+    Confirm action        Cancel action
+         ↓                     ↓
+      Hangup               Hangup
+```
+
+### Information collection
+
+Gather multi-digit input:
+
+```
+Dial → Play Prompt → Collect Digits → Validate → Confirm → Hangup
+                                          ↓ Invalid
+                                    Retry prompt
+```
+
+Use `multi_digit` mode for account numbers, PINs, etc.
+
+### Conditional messaging
+
+Different messages based on contact data:
+
+```
+Dial → Check Condition → Branch
+           ↓ True              ↓ False
+    Play Message A      Play Message B
+           ↓                   ↓
+        Hangup              Hangup
+```
+
+```json
+{
+  "id": "check-tier",
+  "type": "condition",
+  "config": {
+    "expression": {
+      "type": "simple",
+      "variable": { "type": "custom_attribute", "name": "is_premium" },
+      "operator": "eq",
+      "value": true
+    }
+  },
+  "outputs": {
+    "onTrue": "play-premium-message",
+    "onFalse": "play-standard-message"
+  }
+}
+```
+
+## Working with audio
+
+### Sequencing audio items
+
+Audio items play in order:
+
+```json
+{
+  "audioItems": [
+    { "type": "audioFile", "audioId": "greeting" },
+    { "type": "audioFile", "audioId": "your-balance-is" },
+    { "type": "number", "value": { "source": "customAttribute", "attributeName": "balance" }, "mode": "full", "language": "ar" },
+    { "type": "audioFile", "audioId": "dirhams" }
+  ]
+}
+```
+
+Result: "Hello! Your balance is one thousand five hundred dirhams."
+
+### Dynamic content
+
+Reference contact data for personalization:
+
+```json
+{
+  "type": "number",
+  "value": { "source": "customAttribute", "attributeName": "account_balance" },
+  "mode": "full",
+  "language": "ar"
+}
+```
+
+### Barge-in
+
+Let users skip ahead by pressing a key:
+
+```json
+{
+  "type": "play",
+  "config": {
+    "audioItems": [{ "type": "audioFile", "audioId": "message" }],
+    "allowBargeIn": true,
+    "bargeInDtmfNodeId": "collect-input"
+  }
+}
+```
+
+Use barge-in for:
+
+- Long messages users might have heard before
+- Menu prompts where users know their choice
+- Time-sensitive situations
+
+## DTMF collection tips
+
+### Single digit menus
+
+Keep it simple:
+
+```json
+{
+  "mode": "single_digit",
+  "singleDigitConfig": {
+    "allowedDigits": ["1", "2", "3"]
+  }
+}
+```
+
+Best practices:
+
+- Use "1" for the most common action
+- Use "0" for operator/help
+- Use "*" for repeat
+- Use "#" for main menu
+
+### Multi-digit input
+
+For account numbers, PINs, etc.:
+
+```json
+{
+  "mode": "multi_digit",
+  "multiDigitConfig": {
+    "minDigits": 4,
+    "maxDigits": 16,
+    "terminators": ["#"],
+    "interDigitTimeout": 3000
+  }
+}
+```
+
+Always tell users:
+
+- How many digits to enter
+- What key ends input (usually #)
+- What happens if they make a mistake
+
+### Retries
+
+Give users multiple chances:
+
+```json
+{
+  "retry": {
+    "maxRetries": 2,
+    "invalidAudioId": "invalid-input-audio",
+    "timeoutAudioId": "no-input-audio"
+  }
+}
+```
+
+After max retries, route to a helpful ending—not a dead drop.
+
+## Answering machine detection
+
+AMD helps you handle voicemails appropriately:
+
+```json
+{
+  "type": "dial",
+  "config": {
+    "enableAMD": true
+  },
+  "outputs": {
+    "onAnswer": "human-flow",
+    "onVoicemail": "voicemail-flow"
+  }
+}
+```
+
+Voicemail options:
+
+- Leave a brief message
+- Hang up and retry later
+- Hang up with no message
+
+## Recording responses
+
+Capture voice input when DTMF isn't enough:
+
+```json
+{
+  "id": "record-feedback",
+  "type": "record",
+  "config": {
+    "variable": "recordingId",
+    "maxDurationMs": 30000,
+    "silenceThresholdMs": 3000,
+    "beep": true
+  }
+}
+```
+
+Tips:
+
+- Keep max duration reasonable (30-60 seconds)
+- Play a beep before recording
+- Confirm recording was received
+
+## Testing your flows
+
+### Ad-hoc calls
+
+Test with a single call before launching campaigns:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/call-requests \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "fromNumber": "+212500000001",
+    "contactId": "test-contact-id",
+    "flowId": "your-flow-id",
+    "retry": { "type": "none" }
+  }'
+```
+
+### Test each path
+
+Make sure you test:
+
+- Answering and completing the flow
+- Letting it ring (no answer)
+- Rejecting the call
+- Invalid DTMF input
+- Timeout scenarios
+
+### Check reports
+
+Review the call report for details:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/call-report/JOB_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Look at the execution path to verify the flow behaved as expected.
+
+## Debugging common issues
+
+<AccordionGroup>
+
+<Accordion title="Flow stops unexpectedly">
+- Check that all nodes have outputs defined
+- Verify output node IDs exist
+- Look for typos in node references
+</Accordion>
+
+<Accordion title="Wrong audio plays">
+- Confirm audio IDs are correct
+- Check audio was successfully uploaded
+- Verify variable references resolve correctly
+</Accordion>
+
+<Accordion title="DTMF not collecting">
+- Increase timeout value
+- Check allowed digits match what users press
+- Verify barge-in isn't consuming the input
+</Accordion>
+
+<Accordion title="Condition always takes one path">
+- Test with known data values
+- Check operator is correct
+- Verify variable reference syntax
+</Accordion>
+
+</AccordionGroup>
+
+## Best practices summary
+
+1. **Plan before building** - Sketch the flow on paper first
+2. **Start simple** - Get basic flow working before adding complexity
+3. **Handle all outcomes** - Every node needs proper outputs
+4. **Test thoroughly** - Try every path before production
+5. **Keep messages short** - Respect your recipients' time
+6. **Use descriptive labels** - Future you will appreciate it
+7. **Document complex logic** - Use node descriptions
+
+## Next steps
+
+<CardGroup cols="2">
+
+<Card title="Audio Management" icon="volume-high" href="/features/audio-management">
+  Prepare your audio files.
+</Card>
+
+<Card title="Call Flows Reference" icon="book" href="/features/call-flows">
+  Complete node documentation.
+</Card>
+
+<Card title="Building Your First Campaign" icon="rocket" href="/guides/building-your-first-campaign">
+  End-to-end example.
+</Card>
+
+</CardGroup>

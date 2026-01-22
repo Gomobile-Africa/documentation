@@ -1,0 +1,84 @@
+---
+title: "Core Concepts"
+description: "The fundamental building blocks of Gomobile"
+---
+
+This section explains the fundamental building blocks of Gomobile. Understanding these concepts will help you design effective campaigns and troubleshoot issues when they arise.
+
+## The campaign lifecycle
+
+A typical campaign flows through these stages:
+
+1. **Setup** - Create contacts, organize them into audiences, and design your call flow
+2. **Configuration** - Build a program that ties everything together with scheduling and retry rules
+3. **Execution** - Launch the program and let Gomobile handle the calls
+4. **Monitoring** - Track progress and analyze results
+
+Each concept below plays a role in this lifecycle.
+
+## Key concepts
+
+<CardGroup cols="2">
+
+<Card title="Organizations" icon="building" href="/core-concepts/organizations">
+  Your organization is the container for everything else. It defines your team, settings, and subscription plan.
+</Card>
+
+<Card title="Contacts" icon="user" href="/core-concepts/contacts">
+  Contacts are the people you call. They store phone numbers and any additional information for personalization.
+</Card>
+
+<Card title="Audiences" icon="users" href="/core-concepts/audiences">
+  Audiences group contacts into targetable segments. Target entire groups with your programs.
+</Card>
+
+<Card title="Flows" icon="diagram-project" href="/core-concepts/flows">
+  Flows define call logic. Visual blueprints made of nodes that determine what happens at each step.
+</Card>
+
+<Card title="Programs" icon="play" href="/core-concepts/programs">
+  Programs are campaign configurations. They specify audience, flow, schedule, and retry rules.
+</Card>
+
+<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
+  Executions are running instances of programs. Track progress through the audience.
+</Card>
+
+</CardGroup>
+
+## How they connect
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Organization                         │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐    │
+│  │ Contact │  │ Contact │  │ Contact │  │ Contact │    │
+│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘    │
+│       │            │            │            │          │
+│       └──────┬─────┴─────┬──────┘            │          │
+│              ▼           ▼                   ▼          │
+│         ┌────────┐  ┌────────┐         ┌────────┐       │
+│         │Audience│  │Audience│         │Audience│       │
+│         └────┬───┘  └────┬───┘         └────┬───┘       │
+│              │           │                  │           │
+│              └─────┬─────┘                  │           │
+│                    ▼                        │           │
+│              ┌──────────┐    ┌──────┐       │           │
+│              │ Program  │◄───│ Flow │       │           │
+│              └────┬─────┘    └──────┘       │           │
+│                   │                         │           │
+│                   ▼                         │           │
+│              ┌──────────┐                   │           │
+│              │Execution │                   │           │
+│              └──────────┘                   │           │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Next steps
+
+Dive into each concept to understand the details:
+
+- Start with [Organizations](/core-concepts/organizations) to understand the container model
+- Learn about [Contacts](/core-concepts/contacts) and [Audiences](/core-concepts/audiences) for data management
+- Explore [Flows](/core-concepts/flows) for call logic design
+- Understand [Programs](/core-concepts/programs) and [Executions](/core-concepts/executions) for campaign management

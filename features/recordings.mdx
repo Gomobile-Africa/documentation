@@ -1,0 +1,207 @@
+---
+title: "Recordings"
+description: "Manage call recordings captured during flows"
+---
+
+Recordings are audio files captured during call flow execution using the Collect Audio node. Use this API to list, stream, download, and manage recordings.
+
+## How recordings are created
+
+Recordings are created when a call flow executes a `collect_audio` node:
+
+```json
+{
+  "id": "collect-feedback",
+  "type": "collect_audio",
+  "config": {
+    "maxDuration": 60,
+    "firstSilenceTimeout": 5,
+    "silenceDetection": true,
+    "silenceDuration": 2,
+    "beep": true,
+    "recordingIdVariable": "feedbackRecordingId"
+  },
+  "outputs": {
+    "onComplete": "thank-you"
+  }
+}
+```
+
+The recording ID is stored in the specified variable and can be used to retrieve the recording later.
+
+## Listing recordings
+
+Get all recordings for your organization:
+
+```bash
+curl -X GET "https://api.gomobile.ma/api/recordings?limit=20&offset=0" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "a20ad48b-cb36-4448-86c3-f1b4a56cd02a",
+    "callId": "f12d3637-45e8-4088-9712-2c5243da131b",
+    "fileId": "ddf3bb4c-4e0a-4a67-9964-5623527355c2",
+    "recordingType": "segment",
+    "nodeId": "collect-audio-1",
+    "durationMs": 7920,
+    "createdAt": "2025-01-15T10:30:00.000Z",
+    "updatedAt": "2025-01-15T10:30:00.000Z"
+  }
+]
+```
+
+## Recording metadata
+
+Get detailed metadata for a specific recording:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/recordings/RECORDING_ID/metadata \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "a20ad48b-cb36-4448-86c3-f1b4a56cd02a",
+  "callId": "f12d3637-45e8-4088-9712-2c5243da131b",
+  "fileId": "ddf3bb4c-4e0a-4a67-9964-5623527355c2",
+  "recordingType": "segment",
+  "nodeId": "collect-audio-1",
+  "durationMs": 7920,
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z",
+  "file": {
+    "id": "ddf3bb4c-4e0a-4a67-9964-5623527355c2",
+    "name": "recording.wav",
+    "contentType": "audio/wav",
+    "fileSize": 126720
+  }
+}
+```
+
+## Streaming recordings
+
+Stream a recording for inline playback:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/recordings/RECORDING_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Returns the binary audio stream with `Cache-Control: public, max-age=3600`.
+
+## Downloading recordings
+
+Download a recording as a file attachment:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/recordings/RECORDING_ID/download \
+  -H "x-api-key: YOUR_API_KEY" \
+  -o recording.wav
+```
+
+## Recordings by call
+
+Get all recordings for a specific call:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/recordings/call/CALL_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Useful when a call flow has multiple recording nodes.
+
+## Deleting recordings
+
+Soft delete a recording:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/recordings/RECORDING_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "message": "Recording deleted"
+}
+```
+
+<Note>
+Recordings are soft-deleted (marked with `deletedAt`) rather than permanently removed. Soft-deleted recordings are excluded from all API queries.
+</Note>
+
+## Recording types
+
+| Type | Description |
+|------|-------------|
+| `segment` | Recording from a specific node in the flow |
+| `full_call` | Complete call recording (if enabled) |
+
+## Audio format
+
+All recordings are stored as WAV files:
+
+| Property | Value |
+|----------|-------|
+| Sample rate | 8kHz |
+| Bit depth | 16-bit |
+| Channels | Mono (1) |
+| Content-Type | `audio/wav` |
+
+## Using recordings in flows
+
+### Storing the recording ID
+
+Configure the `collect_audio` node to store the recording ID:
+
+```json
+{
+  "config": {
+    "recordingIdVariable": "customerFeedback"
+  }
+}
+```
+
+### With transcription
+
+Enable transcription to get text from the recording:
+
+```json
+{
+  "config": {
+    "transcription": true,
+    "languages": ["ar-MA", "fr-FR"],
+    "transcriptionVariable": "feedbackText"
+  }
+}
+```
+
+The transcription is stored in the specified variable for use in conditions or later processing.
+
+## Retention and storage
+
+- Recordings are stored securely in cloud storage
+- Soft-deleted recordings are excluded from queries but retained for compliance
+- Contact support for information about retention policies
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Call Flows" icon="diagram-project" href="/features/call-flows">
+  Using Collect Audio nodes.
+</Card>
+
+<Card title="Call Reports" icon="chart-line" href="/features/call-reports">
+  Viewing call details.
+</Card>
+
+</CardGroup>

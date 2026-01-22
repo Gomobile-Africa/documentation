@@ -1,0 +1,2867 @@
+openapi: 3.0.0
+paths:
+  /api/auth/login:
+    post:
+      operationId: AuthController_login
+      parameters: []
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponseDto'
+        '401':
+          description: Invalid credentials
+      summary: Login with email and password
+      tags:
+        - Auth
+  /api/auth/refresh:
+    post:
+      operationId: AuthController_refresh
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenDto'
+      responses:
+        '200':
+          description: ''
+      summary: Refresh tokens
+      tags:
+        - Auth
+  /api/auth/logout:
+    post:
+      operationId: AuthController_logout
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutDto'
+      responses:
+        '200':
+          description: ''
+      summary: Logout
+      tags:
+        - Auth
+  /api/auth/logout-all:
+    post:
+      operationId: AuthController_logoutAll
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      summary: Logout all sessions
+      tags:
+        - Auth
+  /api/auth/sessions:
+    post:
+      operationId: AuthController_getUserSessions
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      summary: Get active sessions
+      tags:
+        - Auth
+  /api/auth/revoke-session:
+    post:
+      operationId: AuthController_revokeSession
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeSessionDto'
+      responses:
+        '200':
+          description: ''
+      summary: Revoke session
+      tags:
+        - Auth
+  /api/users/me:
+    get:
+      operationId: UserController_getMe
+      parameters: []
+      responses:
+        '200':
+          description: Current user profile with organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMeResponseDto'
+        '401':
+          description: Unauthorized
+      summary: Get current user profile with organization
+      tags:
+        - Users
+  /api/contact:
+    get:
+      operationId: ContactController_getAll
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: Page number (1-based)
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+        - name: search
+          required: false
+          in: query
+          description: Search term to filter results
+          schema:
+            maxLength: 100
+            example: john
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          description: Field to sort by
+          schema:
+            example: createdAt
+            type: string
+        - name: sortOrder
+          required: false
+          in: query
+          description: Sort order
+          schema:
+            default: desc
+            example: desc
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Paginated list of contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactListResponseDto'
+      summary: Get all contacts for organization with pagination
+      tags:
+        - Contacts
+    post:
+      operationId: ContactController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContactDto'
+      responses:
+        '201':
+          description: Contact created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponseDto'
+        '400':
+          description: Invalid input data
+        '409':
+          description: Phone number already exists
+      summary: Create a new contact
+      tags:
+        - Contacts
+  /api/contact/{id}:
+    get:
+      operationId: ContactController_getById
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Contact UUID
+          schema: {}
+      responses:
+        '200':
+          description: Contact found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactWithAttributesResponseDto'
+        '404':
+          description: Contact not found
+      summary: Get contact by ID with custom attributes
+      tags:
+        - Contacts
+    put:
+      operationId: ContactController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Contact UUID
+          schema: {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContactDto'
+      responses:
+        '200':
+          description: Contact updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponseDto'
+        '404':
+          description: Contact not found
+      summary: Update contact
+      tags:
+        - Contacts
+    delete:
+      operationId: ContactController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Contact UUID
+          schema: {}
+      responses:
+        '200':
+          description: Contact deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponseDto'
+        '404':
+          description: Contact not found
+      summary: Delete contact (soft delete)
+      tags:
+        - Contacts
+  /api/contact/upsert:
+    post:
+      description: >-
+        Create or update multiple contacts at once. Existing contacts are
+        matched by phone number.
+      operationId: ContactController_upsert
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertContactDto'
+      responses:
+        '201':
+          description: Contacts upserted successfully
+        '400':
+          description: Invalid input data
+      summary: Bulk upsert contacts
+      tags:
+        - Contacts
+  /api/custom-attributes:
+    get:
+      operationId: CustomAttributeController_getAll
+      parameters: []
+      responses:
+        '200':
+          description: List of custom attributes
+      summary: Get all custom attributes for organization
+      tags:
+        - Custom Attributes
+    post:
+      description: Define a new custom field for contacts
+      operationId: CustomAttributeController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomAttributeDto'
+      responses:
+        '201':
+          description: Custom attribute created successfully
+        '400':
+          description: Invalid input data
+      summary: Create custom attribute
+      tags:
+        - Custom Attributes
+  /api/custom-attributes/{customAttributeId}:
+    get:
+      operationId: CustomAttributeController_getById
+      parameters:
+        - name: customAttributeId
+          required: true
+          in: path
+          description: Custom Attribute UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Custom attribute found
+        '404':
+          description: Custom attribute not found
+      summary: Get custom attribute by ID
+      tags:
+        - Custom Attributes
+  /api/custom-attributes/{id}:
+    put:
+      operationId: CustomAttributeController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Custom Attribute UUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomAttributeDto'
+      responses:
+        '200':
+          description: Custom attribute updated successfully
+        '404':
+          description: Custom attribute not found
+      summary: Update custom attribute
+      tags:
+        - Custom Attributes
+    delete:
+      operationId: CustomAttributeController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Custom Attribute UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Custom attribute deleted successfully
+        '404':
+          description: Custom attribute not found
+      summary: Delete custom attribute
+      tags:
+        - Custom Attributes
+  /api/audio-management/upload:
+    post:
+      description: Upload and process audio file for use in call flows
+      operationId: AudioManagementController_uploadAudio
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadAudioDto'
+      responses:
+        '201':
+          description: Audio uploaded successfully
+        '400':
+          description: Invalid file or data
+      summary: Upload audio file
+      tags:
+        - Call Flows
+  /api/audio-management/audios:
+    get:
+      description: Get paginated list of audio files with search and sort capabilities
+      operationId: AudioManagementController_listAudios
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: Page number (1-based)
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+        - name: search
+          required: false
+          in: query
+          description: Search term to filter results
+          schema:
+            maxLength: 100
+            example: john
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          description: Field to sort by
+          schema:
+            example: createdAt
+            type: string
+        - name: sortOrder
+          required: false
+          in: query
+          description: Sort order
+          schema:
+            default: desc
+            example: desc
+            type: string
+            enum:
+              - asc
+              - desc
+        - name: organizationId
+          required: false
+          in: query
+          description: Filter by organization ID
+          schema:
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+        - name: usageType
+          required: false
+          in: query
+          description: Filter by usage type
+          schema:
+            example: welcome
+            type: string
+            enum:
+              - welcome
+              - goodbye
+              - question
+              - prompt
+              - hold_music
+              - notification
+              - other
+        - name: tags
+          required: false
+          in: query
+          description: Filter by tags (comma-separated or array)
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: Paginated list of audio files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAudioResponseDtoResponse'
+      summary: List all audio files
+      tags:
+        - Call Flows
+  /api/audio-management/audio/{id}:
+    get:
+      description: Stream audio file directly for playback
+      operationId: AudioManagementController_streamAudio
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audio UUID
+          schema:
+            format: uuid
+            type: string
+      responses:
+        '200':
+          description: Audio file stream
+        '404':
+          description: Audio not found
+      summary: Stream audio file
+      tags:
+        - Call Flows
+    put:
+      description: Update audio file metadata (name, description, tags, etc.)
+      operationId: AudioManagementController_updateAudio
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audio UUID
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAudioDto'
+      responses:
+        '200':
+          description: Audio updated successfully
+        '404':
+          description: Audio not found
+      summary: Update audio metadata
+      tags:
+        - Call Flows
+    delete:
+      description: Delete audio file and remove from storage
+      operationId: AudioManagementController_deleteAudio
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audio UUID
+          schema:
+            format: uuid
+            type: string
+      responses:
+        '200':
+          description: Audio deleted successfully
+        '404':
+          description: Audio not found
+      summary: Delete audio file
+      tags:
+        - Call Flows
+  /api/audio-management/audio/{id}/metadata:
+    get:
+      description: Retrieve audio file metadata without streaming content
+      operationId: AudioManagementController_getAudioMetadata
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audio UUID
+          schema:
+            format: uuid
+            type: string
+      responses:
+        '200':
+          description: Audio metadata
+        '404':
+          description: Audio not found
+      summary: Get audio metadata
+      tags:
+        - Call Flows
+  /api/audio-management/audio/{id}/details:
+    get:
+      description: Retrieve audio file with related entities (organization)
+      operationId: AudioManagementController_getAudioWithRelations
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audio UUID
+          schema:
+            format: uuid
+            type: string
+      responses:
+        '200':
+          description: Audio with relations
+        '404':
+          description: Audio not found
+      summary: Get audio with relations
+      tags:
+        - Call Flows
+  /api/audio-management/audio/{id}/playback-url:
+    get:
+      description: Generate a temporary signed URL for audio playback
+      operationId: AudioManagementController_generatePlaybackUrl
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audio UUID
+          schema:
+            format: uuid
+            type: string
+        - name: expiresIn
+          required: false
+          in: query
+          description: URL expiration in seconds (1-86400)
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Playback URL generated
+        '400':
+          description: Invalid expiresIn parameter
+        '404':
+          description: Audio not found
+      summary: Generate playback URL
+      tags:
+        - Call Flows
+  /api/audio-management/audios/usage/{usageType}:
+    get:
+      description: Retrieve audio files filtered by usage type
+      operationId: AudioManagementController_getAudiosByUsageType
+      parameters:
+        - name: usageType
+          required: true
+          in: path
+          description: Audio usage type (e.g., greeting, voicemail, ivr)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of audio files
+      summary: Get audios by usage type
+      tags:
+        - Call Flows
+  /api/recordings:
+    get:
+      description: Get paginated list of call recordings
+      operationId: RecordManagementController_listRecordings
+      parameters:
+        - name: limit
+          required: false
+          in: query
+          schema:
+            type: number
+        - name: offset
+          required: false
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: List of recordings
+      summary: List recordings
+      tags:
+        - Recordings
+  /api/recordings/{id}:
+    get:
+      description: Stream recording audio for playback
+      operationId: RecordManagementController_streamRecording
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Recording ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audio stream
+        '404':
+          description: Recording not found
+      summary: Stream recording
+      tags:
+        - Recordings
+    delete:
+      description: Soft delete a recording
+      operationId: RecordManagementController_deleteRecording
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Recording ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recording deleted
+        '404':
+          description: Recording not found
+      summary: Delete recording
+      tags:
+        - Recordings
+  /api/recordings/{id}/download:
+    get:
+      description: Download recording as a file
+      operationId: RecordManagementController_downloadRecording
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Recording ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audio file download
+        '404':
+          description: Recording not found
+      summary: Download recording
+      tags:
+        - Recordings
+  /api/recordings/{id}/metadata:
+    get:
+      description: Get recording metadata without audio content
+      operationId: RecordManagementController_getRecordingMetadata
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Recording ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recording metadata
+        '404':
+          description: Recording not found
+      summary: Get recording metadata
+      tags:
+        - Recordings
+  /api/recordings/call/{callId}:
+    get:
+      description: Get all recordings for a specific call
+      operationId: RecordManagementController_getCallRecordings
+      parameters:
+        - name: callId
+          required: true
+          in: path
+          description: Call ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of recordings for the call
+      summary: List recordings by call
+      tags:
+        - Recordings
+  /api/dictionaries:
+    post:
+      operationId: DictionaryController_createDictionary
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDictionaryDto'
+      responses:
+        '201':
+          description: Dictionary created successfully
+      summary: Create a dictionary for the organization
+      tags:
+        - Dictionaries
+    get:
+      operationId: DictionaryController_getDictionaries
+      parameters: []
+      responses:
+        '200':
+          description: List of dictionaries
+      summary: Get all dictionaries for the organization
+      tags:
+        - Dictionaries
+  /api/dictionaries/{dictionaryId}:
+    get:
+      operationId: DictionaryController_getDictionary
+      parameters:
+        - name: dictionaryId
+          required: true
+          in: path
+          description: Dictionary UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dictionary found
+        '404':
+          description: Dictionary not found
+      summary: Get a dictionary by ID
+      tags:
+        - Dictionaries
+    delete:
+      operationId: DictionaryController_deleteDictionary
+      parameters:
+        - name: dictionaryId
+          required: true
+          in: path
+          description: Dictionary UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dictionary deleted successfully
+        '404':
+          description: Dictionary not found
+      summary: Delete a dictionary
+      tags:
+        - Dictionaries
+  /api/dictionaries/{dictionaryId}/entries:
+    post:
+      operationId: DictionaryController_addEntry
+      parameters:
+        - name: dictionaryId
+          required: true
+          in: path
+          description: Dictionary UUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddEntryDto'
+      responses:
+        '201':
+          description: Entry added successfully
+        '404':
+          description: Dictionary not found
+      summary: Add an entry to a dictionary
+      tags:
+        - Dictionaries
+  /api/dictionaries/{dictionaryId}/entries/{key}:
+    get:
+      operationId: DictionaryController_getEntry
+      parameters:
+        - name: dictionaryId
+          required: true
+          in: path
+          description: Dictionary UUID
+          schema:
+            type: string
+        - name: key
+          required: true
+          in: path
+          description: Entry key (e.g., "greeting")
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entry found
+        '404':
+          description: Entry not found
+      summary: Get a dictionary entry by key
+      tags:
+        - Dictionaries
+    delete:
+      operationId: DictionaryController_removeEntry
+      parameters:
+        - name: dictionaryId
+          required: true
+          in: path
+          description: Dictionary UUID
+          schema:
+            type: string
+        - name: key
+          required: true
+          in: path
+          description: Entry key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entry removed successfully
+        '404':
+          description: Entry not found
+      summary: Remove an entry from a dictionary
+      tags:
+        - Dictionaries
+  /api/audience:
+    get:
+      operationId: AudienceController_getAll
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: Page number (1-based)
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+        - name: search
+          required: false
+          in: query
+          description: Search term to filter results
+          schema:
+            maxLength: 100
+            example: john
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          description: Field to sort by
+          schema:
+            example: createdAt
+            type: string
+        - name: sortOrder
+          required: false
+          in: query
+          description: Sort order
+          schema:
+            default: desc
+            example: desc
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudienceListResponseDto'
+      summary: Get all audiences for organization with pagination
+      tags:
+        - Audiences
+    post:
+      operationId: AudienceController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAudienceDto'
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudienceResponseDto'
+        '400':
+          description: Invalid input data
+      summary: Create a new audience
+      tags:
+        - Audiences
+  /api/audience/{id}:
+    get:
+      operationId: AudienceController_getById
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audience UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudienceResponseDto'
+        '404':
+          description: Audience not found
+      summary: Get audience by ID
+      tags:
+        - Audiences
+    put:
+      operationId: AudienceController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audience UUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAudienceDto'
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudienceResponseDto'
+        '404':
+          description: Audience not found
+      summary: Update audience
+      tags:
+        - Audiences
+    delete:
+      operationId: AudienceController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audience UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudienceResponseDto'
+        '404':
+          description: Audience not found
+      summary: Delete audience
+      tags:
+        - Audiences
+  /api/audience/{id}/contacts:
+    get:
+      description: >-
+        Get paginated list of contacts belonging to an audience. Supports search
+        and sort.
+      operationId: AudienceController_getContactsByAudience
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audience UUID
+          schema:
+            type: string
+        - name: page
+          required: false
+          in: query
+          description: Page number (1-based)
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+        - name: search
+          required: false
+          in: query
+          description: Search term to filter results
+          schema:
+            maxLength: 100
+            example: john
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          description: Field to sort by
+          schema:
+            example: createdAt
+            type: string
+        - name: sortOrder
+          required: false
+          in: query
+          description: Sort order
+          schema:
+            default: desc
+            example: desc
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Paginated list of contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedContactResponseDtoResponse'
+        '404':
+          description: Audience not found
+      summary: Get contacts in audience
+      tags:
+        - Audiences
+  /api/audience/{id}/add-contacts:
+    post:
+      description: Add multiple contacts to an audience segment
+      operationId: AudienceController_addContacts
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Audience UUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddContactsDto'
+      responses:
+        '200':
+          description: Contacts added successfully
+        '404':
+          description: Audience not found
+      summary: Add contacts to audience
+      tags:
+        - Audiences
+  /api/flows:
+    post:
+      operationId: FlowController_createFlow
+      parameters: []
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Flow
+    get:
+      operationId: FlowController_getFlowsByOrganization
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Flow
+  /api/flows/{flowId}:
+    put:
+      operationId: FlowController_updateFlow
+      parameters:
+        - name: flowId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Flow
+    get:
+      operationId: FlowController_getFlow
+      parameters:
+        - name: flowId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Flow
+    delete:
+      operationId: FlowController_deleteFlow
+      parameters:
+        - name: flowId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Flow
+  /api/flows/latest/{name}:
+    get:
+      operationId: FlowController_getLatestVersion
+      parameters:
+        - name: name
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Flow
+  /api/flows/{flowId}/permanent:
+    delete:
+      operationId: FlowController_permanentlyDeleteFlow
+      parameters:
+        - name: flowId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Flow
+  /api/flows/validate:
+    post:
+      operationId: FlowController_validateFlow
+      parameters: []
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Flow
+  /api/flows/execute:
+    post:
+      operationId: FlowController_executeFlow
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteFlowRequestDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Flow
+  /api/call-requests:
+    post:
+      operationId: CallRequestController_requestCall
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestCallDto'
+      responses:
+        '202':
+          description: ''
+      tags:
+        - CallRequest
+  /api/call-requests/{jobId}:
+    delete:
+      operationId: CallRequestController_cancelCall
+      parameters:
+        - name: jobId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '204':
+          description: ''
+      tags:
+        - CallRequest
+  /api/programs:
+    post:
+      operationId: ProgramController_createProgram
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProgramDto'
+      responses:
+        '201':
+          description: Program created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramResponseDto'
+        '400':
+          description: Invalid request
+      security:
+        - ApiKeyAuth: []
+      summary: Create a new program
+      tags:
+        - Programs
+    get:
+      operationId: ProgramController_listPrograms
+      parameters: []
+      responses:
+        '200':
+          description: List of programs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProgramResponseDto'
+      security:
+        - ApiKeyAuth: []
+      summary: List all programs for the organization
+      tags:
+        - Programs
+  /api/programs/{id}:
+    get:
+      operationId: ProgramController_getProgram
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Program ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramResponseDto'
+        '404':
+          description: Program not found
+      security:
+        - ApiKeyAuth: []
+      summary: Get program details
+      tags:
+        - Programs
+    patch:
+      operationId: ProgramController_updateProgram
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Program ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramResponseDto'
+        '404':
+          description: Program not found
+      security:
+        - ApiKeyAuth: []
+      summary: Update a program
+      tags:
+        - Programs
+    delete:
+      operationId: ProgramController_deleteProgram
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Program ID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Program deleted
+        '404':
+          description: Program not found
+      security:
+        - ApiKeyAuth: []
+      summary: Delete a program
+      tags:
+        - Programs
+  /api/programs/{id}/launch:
+    post:
+      operationId: ProgramController_launchProgram
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Program ID
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Execution launched
+        '404':
+          description: Program not found
+      security:
+        - ApiKeyAuth: []
+      summary: Launch a program execution
+      tags:
+        - Programs
+  /api/programs/{id}/executions:
+    get:
+      operationId: ProgramController_listProgramExecutions
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Program ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExecutionResponseDto'
+        '404':
+          description: Program not found
+      security:
+        - ApiKeyAuth: []
+      summary: List all executions for a program
+      tags:
+        - Programs
+  /api/program-executions:
+    get:
+      operationId: ProgramExecutionController_listExecutions
+      parameters: []
+      responses:
+        '200':
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExecutionResponseDto'
+      security:
+        - ApiKeyAuth: []
+      summary: List all executions for the organization
+      tags:
+        - Program Executions
+  /api/program-executions/{id}:
+    get:
+      operationId: ProgramExecutionController_getExecution
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Execution ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionResponseDto'
+        '404':
+          description: Execution not found
+      security:
+        - ApiKeyAuth: []
+      summary: Get execution details
+      tags:
+        - Program Executions
+    delete:
+      operationId: ProgramExecutionController_cancelExecution
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Execution ID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Execution cancelled
+        '404':
+          description: Execution not found
+      security:
+        - ApiKeyAuth: []
+      summary: Cancel an execution
+      tags:
+        - Program Executions
+  /api/program-executions/{id}/pause:
+    patch:
+      operationId: ProgramExecutionController_pauseExecution
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Execution ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionResponseDto'
+        '400':
+          description: Invalid state transition
+        '404':
+          description: Execution not found
+      security:
+        - ApiKeyAuth: []
+      summary: Pause a running execution
+      tags:
+        - Program Executions
+  /api/program-executions/{id}/resume:
+    patch:
+      operationId: ProgramExecutionController_resumeExecution
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Execution ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionResponseDto'
+        '400':
+          description: Invalid state transition
+        '404':
+          description: Execution not found
+      security:
+        - ApiKeyAuth: []
+      summary: Resume a paused execution
+      tags:
+        - Program Executions
+  /api/call-report/call/{callId}:
+    get:
+      operationId: CallReportController_getCallReport
+      parameters:
+        - name: callId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - CallReport
+  /api/call-report/{jobId}:
+    get:
+      operationId: CallReportController_getJobReport
+      parameters:
+        - name: jobId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - CallReport
+  /api/program-execution/{executionId}/report:
+    get:
+      operationId: ProgramReportController_getReport
+      parameters:
+        - name: executionId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - ProgramReport
+  /api/program-execution/{executionId}/report/calls:
+    get:
+      operationId: ProgramReportController_getCallHistory
+      parameters:
+        - name: executionId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: page
+          required: false
+          in: query
+          description: Page number (1-based)
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - ProgramReport
+  /api/program-execution/{executionId}/report/breakdown:
+    get:
+      operationId: ProgramReportController_getBreakdown
+      parameters:
+        - name: executionId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - ProgramReport
+  /api/program-execution/{executionId}/report/node-stats:
+    get:
+      operationId: ProgramReportController_getNodeStats
+      parameters:
+        - name: executionId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - ProgramReport
+  /api/program-execution/{executionId}/report/billing:
+    get:
+      operationId: ProgramReportController_getBillingReport
+      parameters:
+        - name: executionId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - ProgramReport
+info:
+  title: GoMobile Backend API
+  description: >-
+    API documentation for GoMobile telephony platform - automated calling
+    campaigns, interactive voice flows, and call management
+  version: '1.0'
+  contact: {}
+tags:
+  - name: Organizations
+    description: Multi-tenant organization management
+  - name: Teams
+    description: Team structure and hierarchy
+  - name: Contacts
+    description: Customer contact management (CRM)
+  - name: Entities
+    description: Business entities management
+  - name: Audiences
+    description: Contact segmentation and groups
+  - name: Programs
+    description: Call campaign configuration
+  - name: Call Flows
+    description: Interactive call flow builder
+servers:
+  - url: http://localhost:3000
+    description: Local Development
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key for authentication
+  schemas:
+    CreateOrganizationDto:
+      type: object
+      properties:
+        country:
+          type: string
+          example: MA
+        timezone:
+          type: string
+          example: Africa/Casablanca
+        currency:
+          type: string
+          example: MAD
+        ice:
+          type: string
+          example: '001234567890123'
+        name:
+          type: string
+          example: Acme Corporation
+        type:
+          type: string
+          enum:
+            - government
+            - enterprise
+            - individual
+            - education
+            - ngo
+          example: enterprise
+        industry:
+          type: string
+          example: Technology
+        plan:
+          type: string
+          enum:
+            - trial
+            - starter
+            - pro
+            - enterprise
+          example: trial
+        primaryUse:
+          type: string
+          enum:
+            - sales
+            - support
+            - market research
+          example: sales
+        size:
+          type: string
+          enum:
+            - 1-10
+            - 11-50
+            - 51-200
+            - 500+
+          example: 11-50
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - inactive
+          example: active
+        slug:
+          type: string
+          example: acme-corp
+      required:
+        - country
+        - timezone
+        - currency
+        - name
+        - type
+        - industry
+        - primaryUse
+        - size
+        - slug
+    UpdateOrganizationDto:
+      type: object
+      properties:
+        country:
+          type: string
+          example: MA
+        timezone:
+          type: string
+          example: Africa/Casablanca
+        currency:
+          type: string
+          example: MAD
+        name:
+          type: string
+          example: Acme Corporation
+        type:
+          type: string
+          enum:
+            - government
+            - enterprise
+            - individual
+            - education
+            - ngo
+          example: enterprise
+        industry:
+          type: string
+          example: Technology
+        primaryUse:
+          type: string
+          enum:
+            - sales
+            - support
+            - market research
+          example: sales
+        size:
+          type: string
+          enum:
+            - 1-10
+            - 11-50
+            - 51-200
+            - 500+
+          example: 11-50
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - inactive
+          example: active
+    UpdateIceDto:
+      type: object
+      properties:
+        ice:
+          type: string
+          example: '001234567890123'
+      required:
+        - ice
+    UpdateSlugDto:
+      type: object
+      properties:
+        slug:
+          type: string
+          example: new-org-slug
+      required:
+        - slug
+    OrganizationDto:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        country:
+          type: string
+        type:
+          type: string
+          enum:
+            - government
+            - enterprise
+            - individual
+            - education
+            - ngo
+        industry:
+          type: string
+        plan:
+          type: string
+          enum:
+            - trial
+            - free
+            - basic
+            - advanced
+            - enterprise
+        size:
+          type: string
+          enum:
+            - 1-10
+            - 11-50
+            - 51-200
+            - 500+
+        primaryUse:
+          type: string
+          enum:
+            - sales
+            - support
+            - market research
+        ice:
+          type: object
+        timezone:
+          type: string
+        currency:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - inactive
+        createdAt:
+          format: date-time
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - slug
+        - country
+        - type
+        - industry
+        - plan
+        - size
+        - primaryUse
+        - timezone
+        - currency
+        - status
+        - createdAt
+        - updatedAt
+    UserMeResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: object
+        isEmailVerified:
+          type: boolean
+        lastLoginAt:
+          format: date-time
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        organization:
+          $ref: '#/components/schemas/OrganizationDto'
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - isEmailVerified
+        - lastLoginAt
+        - createdAt
+        - updatedAt
+        - organization
+    UpdateUserDto:
+      type: object
+      properties:
+        firstName:
+          type: string
+          example: John
+        lastName:
+          type: string
+          example: Doe
+        phone:
+          type: string
+          example: '+212612345678'
+    ContactResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 123e4567-e89b-12d3-a456-426614174000
+        organizationId:
+          type: string
+          example: 123e4567-e89b-12d3-a456-426614174000
+        firstName:
+          type: object
+          example: John
+        lastName:
+          type: object
+          example: Doe
+        fullName:
+          type: object
+          example: John Doe
+        primaryEmail:
+          type: object
+          example: john@example.com
+        primaryPhone:
+          type: string
+          example: '+212612345678'
+        address:
+          type: object
+          example: 123 Main St
+        city:
+          type: object
+          example: Casablanca
+        state:
+          type: object
+          example: Casablanca-Settat
+        zip:
+          type: object
+          example: '20000'
+        occupation:
+          type: object
+          example: Engineer
+        preferredChannel:
+          type: object
+          example: phone
+        gender:
+          type: string
+          enum:
+            - male
+            - female
+        channels:
+          type: object
+          example: []
+        createdAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+      required:
+        - id
+        - organizationId
+        - primaryPhone
+        - channels
+        - createdAt
+        - updatedAt
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: number
+          description: Current page number
+          example: 1
+        limit:
+          type: number
+          description: Number of items per page
+          example: 20
+        total:
+          type: number
+          description: Total number of items
+          example: 150
+        totalPages:
+          type: number
+          description: Total number of pages
+          example: 8
+        hasNextPage:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPreviousPage:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+        - hasNextPage
+        - hasPreviousPage
+    ContactListResponseDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactResponseDto'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+      required:
+        - data
+        - meta
+    ContactCustomAttributeDto:
+      type: object
+      properties:
+        name:
+          type: string
+          example: company_size
+        displayName:
+          type: string
+          example: Company Size
+        description:
+          type: object
+          example: Number of employees
+        type:
+          type: string
+          example: number
+        value:
+          type: object
+          example: 100
+        isLocked:
+          type: boolean
+          example: false
+      required:
+        - name
+        - displayName
+        - type
+        - value
+        - isLocked
+    ContactWithAttributesResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 123e4567-e89b-12d3-a456-426614174000
+        organizationId:
+          type: string
+          example: 123e4567-e89b-12d3-a456-426614174000
+        firstName:
+          type: object
+          example: John
+        lastName:
+          type: object
+          example: Doe
+        fullName:
+          type: object
+          example: John Doe
+        primaryEmail:
+          type: object
+          example: john@example.com
+        primaryPhone:
+          type: string
+          example: '+212612345678'
+        address:
+          type: object
+          example: 123 Main St
+        city:
+          type: object
+          example: Casablanca
+        state:
+          type: object
+          example: Casablanca-Settat
+        zip:
+          type: object
+          example: '20000'
+        occupation:
+          type: object
+          example: Engineer
+        preferredChannel:
+          type: object
+          example: phone
+        gender:
+          type: string
+          enum:
+            - male
+            - female
+        channels:
+          type: object
+          example: []
+        createdAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+        customAttributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactCustomAttributeDto'
+      required:
+        - id
+        - organizationId
+        - primaryPhone
+        - channels
+        - createdAt
+        - updatedAt
+        - customAttributes
+    CreateContactDto:
+      type: object
+      properties:
+        firstName:
+          type: string
+          example: John
+        lastName:
+          type: string
+          example: Doe
+        fullName:
+          type: string
+          example: John Doe
+        primaryEmail:
+          type: string
+          example: john@example.com
+        primaryPhone:
+          type: string
+          example: '+212612345678'
+        address:
+          type: string
+          example: 123 Main St
+        city:
+          type: string
+          example: Casablanca
+        state:
+          type: string
+          example: Casablanca-Settat
+        zip:
+          type: string
+          example: '20000'
+        occupation:
+          type: string
+          example: Engineer
+        preferredChannel:
+          type: string
+          example: phone
+        customAttributes:
+          type: object
+          example:
+            age: 30
+            interests:
+              - tech
+      required:
+        - primaryPhone
+    UpsertContactDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateContactDto'
+      required:
+        - data
+    UpdateContactDto:
+      type: object
+      properties:
+        firstName:
+          type: string
+          example: John
+        lastName:
+          type: string
+          example: Doe
+        fullName:
+          type: string
+          example: John Doe
+        primaryEmail:
+          type: string
+          example: john@example.com
+        primaryPhone:
+          type: string
+          example: '+212612345678'
+        address:
+          type: string
+          example: 123 Main St
+        city:
+          type: string
+          example: Casablanca
+        state:
+          type: string
+          example: Casablanca-Settat
+        zip:
+          type: string
+          example: '20000'
+        occupation:
+          type: string
+          example: Engineer
+        preferredChannel:
+          type: string
+          example: phone
+        customAttributes:
+          type: object
+          example:
+            age: 30
+            interests:
+              - tech
+    CreateCustomAttributeDto:
+      type: object
+      properties:
+        displayName:
+          type: string
+          example: Customer Age
+        description:
+          type: string
+          example: Age of the customer in years
+        type:
+          type: string
+          enum:
+            - text
+            - number
+            - boolean
+            - date
+            - phone_number
+            - email
+            - url
+          example: number
+      required:
+        - displayName
+        - type
+    UpdateCustomAttributeDto:
+      type: object
+      properties:
+        description:
+          type: string
+          example: Updated description
+    UploadAudioDto:
+      type: object
+      properties:
+        title:
+          type: string
+          example: Welcome Message
+        description:
+          type: string
+          example: Welcome audio for customers
+        usageType:
+          type: string
+          enum:
+            - welcome
+            - goodbye
+            - question
+            - prompt
+            - hold_music
+            - notification
+            - other
+        tags:
+          example:
+            - welcome
+            - greeting
+          type: array
+          items:
+            type: string
+    AudioResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: object
+        usageType:
+          type: string
+          enum:
+            - welcome
+            - goodbye
+            - question
+            - prompt
+            - hold_music
+            - notification
+            - other
+        tags:
+          type: object
+        durationSeconds:
+          type: object
+        sampleRate:
+          type: object
+        channels:
+          type: object
+        bitDepth:
+          type: object
+        organizationId:
+          type: object
+        originalFileName:
+          type: object
+        createdAt:
+          format: date-time
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        file:
+          type: object
+      required:
+        - id
+        - title
+        - usageType
+        - createdAt
+        - updatedAt
+        - file
+    PaginatedAudioResponseDtoResponse:
+      type: object
+      properties:
+        data:
+          description: Array of items
+          type: array
+          items:
+            $ref: '#/components/schemas/AudioResponseDto'
+        meta:
+          description: Pagination metadata
+          allOf:
+            - $ref: '#/components/schemas/PaginationMeta'
+      required:
+        - data
+        - meta
+    UpdateAudioDto:
+      type: object
+      properties:
+        title:
+          type: string
+          example: Updated Title
+        description:
+          type: string
+          example: Updated description
+        usageType:
+          type: string
+          enum:
+            - welcome
+            - goodbye
+            - question
+            - prompt
+            - hold_music
+            - notification
+            - other
+        tags:
+          example:
+            - welcome
+            - greeting
+          type: array
+          items:
+            type: string
+    CreateDictionaryDto:
+      type: object
+      properties: {}
+    AddEntryDto:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Dictionary key (e.g., "100", "and", "thousand")
+          example: '100'
+          maxLength: 256
+      required:
+        - key
+    RegisterWithOrganizationDto:
+      type: object
+      properties:
+        email:
+          type: string
+          example: john.doe@example.com
+        password:
+          type: string
+          example: SecurePass123!
+        firstName:
+          type: string
+          example: John
+        lastName:
+          type: string
+          example: Doe
+        phone:
+          type: string
+          example: '+212612345678'
+        organization:
+          $ref: '#/components/schemas/CreateOrganizationDto'
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - organization
+    AuthResponseDto:
+      type: object
+      properties: {}
+    RefreshTokenDto:
+      type: object
+      properties: {}
+    LogoutDto:
+      type: object
+      properties: {}
+    RevokeSessionDto:
+      type: object
+      properties: {}
+    CreateApiKeyDto:
+      type: object
+      properties: {}
+    ApiKeyWithSecretDto:
+      type: object
+      properties: {}
+    MessageResponseDto:
+      type: object
+      properties: {}
+    ApiKeysListResponseDto:
+      type: object
+      properties: {}
+    ApiKeyResponseDto:
+      type: object
+      properties: {}
+    UpdateApiKeyDto:
+      type: object
+      properties: {}
+    AudienceResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 123e4567-e89b-12d3-a456-426614174000
+        organizationId:
+          type: string
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          example: VIP Customers
+        description:
+          type: object
+          example: High-value customers for priority campaigns
+        createdAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+      required:
+        - id
+        - organizationId
+        - name
+        - createdAt
+        - updatedAt
+    AudienceListResponseDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AudienceResponseDto'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+      required:
+        - data
+        - meta
+    PaginatedContactResponseDtoResponse:
+      type: object
+      properties:
+        data:
+          description: Array of items
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactResponseDto'
+        meta:
+          description: Pagination metadata
+          allOf:
+            - $ref: '#/components/schemas/PaginationMeta'
+      required:
+        - data
+        - meta
+    CreateAudienceDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Audience name
+          minLength: 3
+          maxLength: 64
+        description:
+          type: string
+          description: Audience description
+          maxLength: 256
+      required:
+        - name
+    AddContactsDto:
+      type: object
+      properties:
+        contacts:
+          example:
+            - 123e4567-e89b-12d3-a456-426614174000
+            - 123e4567-e89b-12d3-a456-426614174001
+          type: array
+          items:
+            type: string
+      required:
+        - contacts
+    UpdateAudienceDto:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Updated Audience Name
+        description:
+          type: string
+          example: Updated description
+    AddCreditsDto:
+      type: object
+      properties:
+        amount:
+          type: number
+          description: Amount of credits to add
+          example: 100
+        description:
+          type: string
+          description: Optional description
+      required:
+        - amount
+    SmsProgramResponseDto:
+      type: object
+      properties: {}
+    SmsProgramWithProgressResponseDto:
+      type: object
+      properties: {}
+    CreateSmsProgramDto:
+      type: object
+      properties: {}
+    UpdateSmsProgramDto:
+      type: object
+      properties: {}
+    LaunchSmsProgramResponseDto:
+      type: object
+      properties: {}
+    UploadOptionsDto:
+      type: object
+      properties:
+        previewRows:
+          type: number
+          description: 'Number of preview rows to return (default: 20, max: 100)'
+          default: 20
+          minimum: 1
+          maximum: 100
+        hasHeaderRow:
+          type: boolean
+          description: 'Whether the first row is a header row (default: false)'
+          default: false
+    ColumnMappingDto:
+      type: object
+      properties:
+        column:
+          type: number
+          description: Column index (0-indexed)
+          example: 0
+        field:
+          type: string
+          description: >-
+            Target field name. Standard fields: firstName, lastName,
+            primaryPhone, etc. Custom attributes: custom.{name}
+          example: primaryPhone
+      required:
+        - column
+        - field
+    ValidateRequestDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: Session ID from upload
+          format: uuid
+        columnMappings:
+          description: Column to field mappings
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnMappingDto'
+      required:
+        - sessionId
+        - columnMappings
+    ExecuteRequestDto:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: Session ID from upload
+          format: uuid
+      required:
+        - sessionId
+    ExecuteFlowRequestDto:
+      type: object
+      properties: {}
+    RequestCallDto:
+      type: object
+      properties: {}
+    PauseWindowTimeDto:
+      type: object
+      properties:
+        hour:
+          type: number
+          example: 12
+          description: Hour (0-23)
+        minute:
+          type: number
+          example: 0
+          description: Minute (0-59)
+      required:
+        - hour
+        - minute
+    PauseWindowItemDto:
+      type: object
+      properties:
+        startAt:
+          $ref: '#/components/schemas/PauseWindowTimeDto'
+        endAt:
+          $ref: '#/components/schemas/PauseWindowTimeDto'
+      required:
+        - startAt
+        - endAt
+    PauseWindowAdvancedItemDto:
+      type: object
+      properties:
+        startAt:
+          type: string
+          example: '2025-12-25T00:00:00Z'
+        endAt:
+          type: string
+          example: '2025-12-25T23:59:59Z'
+      required:
+        - startAt
+        - endAt
+    PauseWindowsDto:
+      type: object
+      properties:
+        sunday:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowItemDto'
+        monday:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowItemDto'
+        tuesday:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowItemDto'
+        wednesday:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowItemDto'
+        thursday:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowItemDto'
+        friday:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowItemDto'
+        saturday:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowItemDto'
+        advanced:
+          type: array
+          items:
+            $ref: '#/components/schemas/PauseWindowAdvancedItemDto'
+    CreateProgramDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Program name
+        audienceId:
+          type: string
+          description: Audience ID to call
+        flowId:
+          type: string
+          description: Flow ID to execute
+        startAt:
+          type: string
+          description: Scheduled start time (ISO 8601)
+          example: '2025-12-20T09:00:00Z'
+        stopAt:
+          type: string
+          description: Scheduled stop time (ISO 8601)
+          example: '2025-12-20T18:00:00Z'
+        didPool:
+          description: Pool of DIDs to use for outbound calls (at least one required)
+          example:
+            - '+212500000001'
+            - '+212500000002'
+          type: array
+          items:
+            type: string
+        retryStrategy:
+          type: object
+          description: Retry strategy for failed calls
+          additionalProperties: true
+          example:
+            type: fixed_delay
+            delayMinutes: 30
+            maxRetries: 2
+        pauseWindows:
+          $ref: '#/components/schemas/PauseWindowsDto'
+      required:
+        - name
+        - audienceId
+        - flowId
+        - startAt
+        - didPool
+        - retryStrategy
+    ProgramResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Program ID
+        name:
+          type: string
+          description: Program name
+        organizationId:
+          type: string
+          description: Organization ID
+        audienceId:
+          type: string
+          description: Audience ID
+        flowId:
+          type: string
+          description: Flow ID
+        status:
+          type: string
+          enum:
+            - draft
+            - active
+            - archived
+          description: Program lifecycle status. Operational status is on executions.
+        startAt:
+          type: string
+          description: Scheduled start time
+        stopAt:
+          type: object
+          description: Scheduled stop time
+        didPool:
+          description: DID pool
+          type: array
+          items:
+            type: string
+        retryStrategy:
+          type: object
+          description: Retry strategy
+          additionalProperties: true
+        pauseWindows:
+          type: object
+          additionalProperties: true
+          description: Pause windows
+        createdAt:
+          type: string
+          description: Created at
+        updatedAt:
+          type: string
+          description: Updated at
+      required:
+        - id
+        - name
+        - organizationId
+        - audienceId
+        - flowId
+        - status
+        - startAt
+        - didPool
+        - retryStrategy
+        - createdAt
+        - updatedAt
+    ExecutionResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Execution ID
+        programId:
+          type: string
+          description: Program ID
+        organizationId:
+          type: string
+          description: Organization ID
+        audienceId:
+          type: string
+          description: Audience ID
+        flowId:
+          type: string
+          description: Flow ID
+        status:
+          type: string
+          enum:
+            - scheduled
+            - running
+            - paused
+            - completed
+            - stopped
+            - cancelled
+        totalContacts:
+          type: number
+          description: Total contacts in execution
+        contactsCompleted:
+          type: number
+          description: Contacts completed successfully
+        contactsFailed:
+          type: number
+          description: Contacts failed
+        contactsPending:
+          type: number
+          description: Contacts pending
+        contactsInProgress:
+          type: number
+          description: Contacts currently in progress
+        scheduledStartAt:
+          type: string
+          description: Scheduled start time
+        scheduledStopAt:
+          type: string
+          description: Scheduled stop time
+        actualStartAt:
+          type: string
+          description: Actual start time
+        actualEndAt:
+          type: string
+          description: Actual end time
+        createdAt:
+          type: string
+          description: Created at
+        updatedAt:
+          type: string
+          description: Updated at
+      required:
+        - id
+        - programId
+        - organizationId
+        - audienceId
+        - flowId
+        - status
+        - totalContacts
+        - contactsCompleted
+        - contactsFailed
+        - contactsPending
+        - contactsInProgress
+        - scheduledStartAt
+        - createdAt
+        - updatedAt

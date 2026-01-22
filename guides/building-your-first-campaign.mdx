@@ -1,0 +1,418 @@
+---
+title: "Building Your First Campaign"
+description: "Complete walkthrough of creating and launching a calling campaign"
+---
+
+This guide walks you through creating a complete calling campaign from scratch. By the end, you'll have a working campaign that calls contacts and plays a message.
+
+## What you'll build
+
+A payment reminder campaign that:
+
+1. Calls customers with outstanding balances
+2. Plays a personalized message with their balance
+3. Collects a response (press 1 to confirm, press 2 for callback)
+4. Retries failed calls once after 30 minutes
+
+## Prerequisites
+
+- Gomobile account with API access
+- Access token (see [Authentication](/getting-started/authentication))
+- At least one DID allocated to your account
+- Audio files for your messages (or use text descriptions for now)
+
+## Step 1: Create your contacts
+
+First, add the people you'll be calling:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "firstName": "Ahmed",
+    "lastName": "Tazi",
+    "primaryPhone": "+212612345678",
+    "customAttributes": {
+      "account_balance": 1500,
+      "days_overdue": 15
+    }
+  }'
+```
+
+Save the contact ID from the response. Repeat for additional contacts.
+
+For bulk import, use the upsert endpoint:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact/upsert \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {
+        "firstName": "Ahmed",
+        "lastName": "Tazi",
+        "primaryPhone": "+212612345678",
+        "customAttributes": { "account_balance": 1500 }
+      },
+      {
+        "firstName": "Fatima",
+        "lastName": "Benali",
+        "primaryPhone": "+212612345679",
+        "customAttributes": { "account_balance": 2300 }
+      },
+      {
+        "firstName": "Omar",
+        "lastName": "Alami",
+        "primaryPhone": "+212612345680",
+        "customAttributes": { "account_balance": 850 }
+      }
+    ]
+  }'
+```
+
+## Step 2: Create an audience
+
+Group your contacts into a targetable audience:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/audience \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "January Payment Reminders",
+    "description": "Customers with outstanding balances for January campaign"
+  }'
+```
+
+Save the audience ID.
+
+## Step 3: Add contacts to the audience
+
+Link your contacts to the audience:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/audience/AUDIENCE_ID/add-contacts \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contacts": [
+      "CONTACT_ID_1",
+      "CONTACT_ID_2",
+      "CONTACT_ID_3"
+    ]
+  }'
+```
+
+## Step 4: Upload audio files
+
+Upload the audio files you'll use in the flow:
+
+```bash
+# Welcome message
+curl -X POST https://api.gomobile.ma/api/audio-management/upload \
+  -H "x-api-key: YOUR_API_KEY" \
+  -F "file=@welcome.wav" \
+  -F "title=Payment Reminder Welcome" \
+  -F "usageType=welcome"
+
+# Your balance is... (before the number)
+curl -X POST https://api.gomobile.ma/api/audio-management/upload \
+  -H "x-api-key: YOUR_API_KEY" \
+  -F "file=@your-balance-is.wav" \
+  -F "title=Your Balance Is" \
+  -F "usageType=prompt"
+
+# Dirhams (currency)
+curl -X POST https://api.gomobile.ma/api/audio-management/upload \
+  -H "x-api-key: YOUR_API_KEY" \
+  -F "file=@dirhams.wav" \
+  -F "title=Dirhams" \
+  -F "usageType=prompt"
+
+# Menu prompt
+curl -X POST https://api.gomobile.ma/api/audio-management/upload \
+  -H "x-api-key: YOUR_API_KEY" \
+  -F "file=@menu-prompt.wav" \
+  -F "title=Menu Prompt" \
+  -F "usageType=prompt"
+
+# Confirmation message
+curl -X POST https://api.gomobile.ma/api/audio-management/upload \
+  -H "x-api-key: YOUR_API_KEY" \
+  -F "file=@confirmation.wav" \
+  -F "title=Confirmation" \
+  -F "usageType=notification"
+
+# Callback message
+curl -X POST https://api.gomobile.ma/api/audio-management/upload \
+  -H "x-api-key: YOUR_API_KEY" \
+  -F "file=@callback-scheduled.wav" \
+  -F "title=Callback Scheduled" \
+  -F "usageType=notification"
+```
+
+Save all the audio IDs.
+
+## Step 5: Create the call flow
+
+Now build the flow that defines what happens during each call:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/flows \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Payment Reminder Flow",
+    "description": "Reminds customers of balance and collects response",
+    "graph": {
+      "startNodeId": "dial-1",
+      "nodes": [
+        {
+          "id": "dial-1",
+          "type": "dial",
+          "label": "Call Customer",
+          "config": {
+            "timeout": 30000,
+            "enableAMD": true
+          },
+          "outputs": {
+            "onAnswer": "play-welcome",
+            "onVoicemail": "hangup-vm",
+            "onNoAnswer": "hangup-na",
+            "onBusy": "hangup-busy"
+          }
+        },
+        {
+          "id": "play-welcome",
+          "type": "play",
+          "label": "Play Balance Message",
+          "config": {
+            "audioItems": [
+              { "type": "audioFile", "audioId": "WELCOME_AUDIO_ID" },
+              { "type": "audioFile", "audioId": "YOUR_BALANCE_IS_AUDIO_ID" },
+              {
+                "type": "number",
+                "value": { "source": "customAttribute", "attributeName": "account_balance" },
+                "mode": "full",
+                "language": "ar",
+                "dictionaryId": null
+              },
+              { "type": "audioFile", "audioId": "DIRHAMS_AUDIO_ID" },
+              { "type": "audioFile", "audioId": "MENU_PROMPT_AUDIO_ID" }
+            ]
+          },
+          "outputs": {
+            "onComplete": "collect-response"
+          }
+        },
+        {
+          "id": "collect-response",
+          "type": "dtmf",
+          "label": "Get Customer Response",
+          "config": {
+            "mode": "single_digit",
+            "variable": "customerResponse",
+            "timeout": 10000,
+            "singleDigitConfig": {
+              "allowedDigits": ["1", "2"]
+            },
+            "retry": {
+              "maxRetries": 2
+            }
+          },
+          "outputs": {
+            "branches": {
+              "1": "play-confirmation",
+              "2": "play-callback"
+            },
+            "onTimeout": "hangup-timeout",
+            "onMaxRetries": "hangup-max-retries"
+          }
+        },
+        {
+          "id": "play-confirmation",
+          "type": "play",
+          "label": "Confirm Payment",
+          "config": {
+            "audioItems": [
+              { "type": "audioFile", "audioId": "CONFIRMATION_AUDIO_ID" }
+            ]
+          },
+          "outputs": {
+            "onComplete": "hangup-success"
+          }
+        },
+        {
+          "id": "play-callback",
+          "type": "play",
+          "label": "Schedule Callback",
+          "config": {
+            "audioItems": [
+              { "type": "audioFile", "audioId": "CALLBACK_AUDIO_ID" }
+            ]
+          },
+          "outputs": {
+            "onComplete": "hangup-success"
+          }
+        },
+        {
+          "id": "hangup-success",
+          "type": "hangup",
+          "label": "End - Success",
+          "config": { "reason": "completed", "hangupType": "normal" }
+        },
+        {
+          "id": "hangup-vm",
+          "type": "hangup",
+          "label": "End - Voicemail",
+          "config": { "reason": "voicemail", "hangupType": "voicemail" }
+        },
+        {
+          "id": "hangup-na",
+          "type": "hangup",
+          "label": "End - No Answer",
+          "config": { "reason": "no_answer", "hangupType": "no_answer" }
+        },
+        {
+          "id": "hangup-busy",
+          "type": "hangup",
+          "label": "End - Busy",
+          "config": { "reason": "busy", "hangupType": "busy" }
+        },
+        {
+          "id": "hangup-timeout",
+          "type": "hangup",
+          "label": "End - Timeout",
+          "config": { "reason": "dtmf_timeout", "hangupType": "timeout" }
+        },
+        {
+          "id": "hangup-max-retries",
+          "type": "hangup",
+          "label": "End - Max Retries",
+          "config": { "reason": "max_retries", "hangupType": "timeout" }
+        }
+      ]
+    }
+  }'
+```
+
+Save the flow ID.
+
+## Step 6: Create the program
+
+Configure the campaign with all the pieces:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/programs \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "January Payment Reminders",
+    "audienceId": "AUDIENCE_ID",
+    "flowId": "FLOW_ID",
+    "startAt": "2025-01-20T09:00:00Z",
+    "stopAt": "2025-01-20T18:00:00Z",
+    "didPool": ["+212500000001"],
+    "retryStrategy": {
+      "type": "fixed_delay",
+      "delayMinutes": 30,
+      "maxRetries": 1
+    },
+    "pauseWindows": {
+      "monday": [
+        { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+      ]
+    }
+  }'
+```
+
+Save the program ID.
+
+## Step 7: Launch the campaign
+
+Start the execution:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/programs/PROGRAM_ID/launch \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "executionId": "execution-uuid"
+}
+```
+
+## Step 8: Monitor progress
+
+Check how the campaign is doing:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/program-executions/EXECUTION_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Watch the counters:
+
+```json
+{
+  "status": "running",
+  "totalContacts": 3,
+  "contactsCompleted": 1,
+  "contactsFailed": 0,
+  "contactsPending": 1,
+  "contactsInProgress": 1
+}
+```
+
+## Verification
+
+Your campaign is working when:
+
+- Status shows `running` or `completed`
+- `contactsCompleted` increases over time
+- You can answer a test call and hear your audio
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="No calls going out?">
+- Check that `startAt` is in the past or current
+- Verify you're not in a pause window
+- Confirm DIDs are valid
+</Accordion>
+
+<Accordion title="Calls fail immediately?">
+- Check phone number formats
+- Verify DID is allocated to your account
+</Accordion>
+
+<Accordion title="Audio doesn't play?">
+- Confirm audio IDs are correct
+- Check audio was processed successfully
+</Accordion>
+
+</AccordionGroup>
+
+## What's next
+
+<CardGroup cols="2">
+
+<Card title="Designing Call Flows" icon="diagram-project" href="/guides/designing-call-flows">
+  Build more complex flows.
+</Card>
+
+<Card title="Retry Strategies" icon="rotate" href="/features/retry-strategies">
+  Optimize your retry configuration.
+</Card>
+
+<Card title="Call Flows Reference" icon="book" href="/features/call-flows">
+  Complete node reference.
+</Card>
+
+</CardGroup>

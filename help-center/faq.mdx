@@ -1,0 +1,436 @@
+---
+title: "Frequently Asked Questions"
+description: "Find answers to the most common questions about Gomobile"
+---
+
+Find answers to the most common questions about Gomobile.
+
+---
+
+## Authentication & Access
+
+<AccordionGroup>
+
+<Accordion title="How do I get an API key?">
+API keys are provisioned by the Gomobile team to ensure security and proper access control.
+
+**To request an API key:**
+
+1. Visit our [API Key Request Form](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE)
+2. Fill in your details and use case
+3. Our team will review and provision your key within 24 hours
+4. You'll receive your API key via secure email
+
+Once you receive your key, store it securely and use it in the `Authorization` header:
+
+```
+x-api-key YOUR_API_KEY
+```
+
+</Accordion>
+
+<Accordion title="What authentication method does Gomobile use?">
+Gomobile uses API key-based authentication. Your API key is a long-lived credential that you include in every request:
+
+```
+x-api-key YOUR_API_KEY
+```
+
+| Feature            | API Key                    |
+| ------------------ | -------------------------- |
+| **Lifespan**       | Long-lived                 |
+| **Obtained via**   | Request from Gomobile team |
+| **Refresh needed** | No                         |
+| **Best for**       | All API integrations       |
+
+API keys are provisioned by our team. [Request your API key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) to get started.
+
+</Accordion>
+
+<Accordion title="My API key stopped working. What happened?">
+Common reasons:
+
+1. **Expired** - Your key may have an expiration date
+2. **Revoked** - The key may have been revoked for security reasons
+3. **Wrong format** - Ensure you're using `x-api-key: <your-key>`
+4. **Typo** - Double-check you're using the correct key
+
+**To resolve:** [Contact our support team](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) and we'll help you verify your key status or provision a new one.
+
+</Accordion>
+
+<Accordion title="Can I have multiple API keys?">
+Yes! You can have multiple API keys for different purposes:
+
+- **Per environment**: Separate keys for development, staging, and production
+- **Per integration**: One key per third-party service
+- **Per team member**: Individual keys for accountability
+
+To request additional API keys, [contact our team](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) with your use case.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Contacts & Audiences
+
+<AccordionGroup>
+
+<Accordion title="What's the difference between a contact and an audience?">
+| Concept      | Description                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------- |
+| **Contact**  | An individual person with a phone number and optional details (name, email, address, custom attributes) |
+| **Audience** | A named group of contacts that can be targeted by a program                                             |
+
+Think of contacts as rows in a database, and audiences as saved filters or segments. One contact can belong to multiple audiences.
+
+</Accordion>
+
+<Accordion title="Can a contact be in multiple audiences?">
+Yes! Contacts can belong to any number of audiences simultaneously. Add contacts to an audience using:
+
+```json
+POST /audience/:id/add-contacts
+{
+  "contacts": ["contact-uuid-1", "contact-uuid-2"]
+}
+```
+
+</Accordion>
+
+<Accordion title="What phone number formats are accepted?">
+Phone numbers must be **3-20 characters**. We recommend E.164 format:
+
+```
++[country code][number]
+```
+
+Examples:
+
+- ✅ `+212612345678` (Morocco)
+- ✅ `+14155551234` (USA)
+- ❌ `06-12-34-56-78` (spaces/dashes)
+- ❌ `0612345678` (missing country code)
+</Accordion>
+
+<Accordion title="How do I import contacts in bulk?">
+Use the upsert endpoint to import multiple contacts at once:
+
+```json
+POST /contact/upsert
+{
+  "data": [
+    {
+      "firstName": "John",
+      "lastName": "Doe",
+      "primaryPhone": "+212612345678"
+    },
+    {
+      "firstName": "Jane",
+      "lastName": "Smith",
+      "primaryPhone": "+212612345679"
+    }
+  ]
+}
+```
+
+Existing contacts (matched by phone number) are updated; new contacts are created.
+
+</Accordion>
+
+<Accordion title="Can I add custom fields to contacts?">
+Yes! First, define a custom attribute for your organization:
+
+```json
+POST /custom-attributes
+{
+  "displayName": "Customer Tier",
+  "type": "text"
+}
+```
+
+Supported types: `text`, `number`, `boolean`, `date`, `phone_number`, `email`, `url`.
+
+Then include it when creating/updating contacts:
+
+```json
+{
+  "primaryPhone": "+212612345678",
+  "customAttributes": {
+    "customer_tier": "gold"
+  }
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Flows & Nodes
+
+<AccordionGroup>
+
+<Accordion title="What's the difference between a flow and a program?">
+| Concept     | Purpose                                                                          |
+| ----------- | -------------------------------------------------------------------------------- |
+| **Flow**    | Defines _what happens_ during a call - the logic, audio, inputs, branching       |
+| **Program** | Defines _when, who, and how_ - audience, schedule, retry strategy, pause windows |
+
+A flow is like a script; a program is like a scheduled performance of that script to a specific audience.
+
+</Accordion>
+
+<Accordion title="Can I reuse flows across multiple programs?">
+  Yes! Flows are templates that can be used by many programs. Create the flow
+  once, then reference its `flowId` in different programs targeting different
+  audiences or schedules.
+</Accordion>
+
+<Accordion title="What node types are available?">
+| Node             | Purpose               | Key Outputs                                                                  |
+| ---------------- | --------------------- | ---------------------------------------------------------------------------- |
+| **Dial**         | Places outbound call  | `onAnswer`, `onVoicemail`, `onNoAnswer`, `onBusy`, `onRejected`, `onError`   |
+| **Answer**       | Answers inbound call  | `onSuccess`, `onError`                                                       |
+| **Play**         | Plays audio           | `onComplete`, `onError`                                                      |
+| **DTMF**         | Collects keypad input | `branches` (by digit), `onSuccess`, `onTimeout`, `onInvalid`, `onMaxRetries` |
+| **Record**       | Records voice         | `onComplete`, `onTimeout`, `onError`                                         |
+| **Condition**    | Branches on logic     | `onTrue`, `onFalse`, `onError`                                               |
+| **Set Variable** | Stores a value        | `onSuccess`, `onError`                                                       |
+| **Hangup**       | Ends the call         | None (terminal)                                                              |
+</Accordion>
+
+<Accordion title="How do I test a flow before launching?">
+Use the validate endpoint to check your flow without saving:
+
+```
+POST /flows/validate
+```
+
+Pass your flow definition (the `graph` object) in the request body.
+
+Response:
+
+```json
+{
+  "valid": true,
+  "errors": []
+}
+```
+
+You can also execute a single test call using `POST /flows/execute` with a test contact.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Calls & Execution
+
+<AccordionGroup>
+
+<Accordion title="Why didn't my call go through?">
+Check the call report (`GET /call-report/:jobId`) for the `outcome` field:
+
+| Outcome     | Meaning                                    |
+| ----------- | ------------------------------------------ |
+| `no_answer` | Recipient didn't pick up (timeout reached) |
+| `busy`      | Line was busy                              |
+| `rejected`  | Recipient declined the call                |
+| `failed`    | System error (check `outcomeReason`)       |
+| `cancelled` | Call was cancelled before completion       |
+
+Also verify:
+
+- Phone number format is correct
+- DID pool has valid numbers
+- Program status is `active`
+</Accordion>
+
+<Accordion title="What does 'AMD' mean?">
+**AMD = Answering Machine Detection**
+
+When enabled (`enableAMD: true`) on a Dial node, the system detects whether a human or voicemail answered:
+
+- **Human detected** → Routes to `onAnswer`
+- **Machine detected** → Routes to `onVoicemail`
+
+This lets you play different messages or skip voicemails entirely.
+
+</Accordion>
+
+<Accordion title="How do I stop a running campaign?">
+Two options:
+
+1. **Pause** (can resume later):
+
+   ```
+   PATCH /program-executions/:id/pause
+   ```
+
+2. **Cancel** (permanent):
+   ```
+   DELETE /program-executions/:id
+   ```
+
+Note: Already-queued calls will complete; only pending contacts are affected.
+
+</Accordion>
+
+<Accordion title="Can I call the same contact multiple times?">
+Yes, through **retry strategies**. If a call fails (no answer, busy, etc.), the system can automatically retry based on your configuration:
+
+- `fixed_delay`: Retry after X minutes
+- `scheduled`: Retry at specific times
+
+See [Retry Strategies](/features/retry-strategies) for details.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Retry Strategies
+
+<AccordionGroup>
+
+<Accordion title="How many times will Gomobile retry a failed call?">
+It depends on your retry strategy:
+
+- **`none`**: No retries (1 attempt total)
+- **`fixed_delay`**: Up to `maxRetries` additional attempts
+- **`scheduled`**: Number of dates in `retryDates` array
+
+Example with 3 retries (4 total attempts):
+
+```json
+{
+  "type": "fixed_delay",
+  "delayMinutes": 30,
+  "maxRetries": 3
+}
+```
+
+</Accordion>
+
+<Accordion title="What triggers a retry?">
+Retries are triggered when a call doesn't reach a successful outcome:
+
+- ✅ `completed` - No retry (success)
+- 🔄 `no_answer` - Retry
+- 🔄 `busy` - Retry
+- 🔄 `rejected` - Retry
+- 🔄 `voicemail` - Retry (configurable)
+- ❌ `failed` - Retry (system error)
+</Accordion>
+
+<Accordion title="Do retries respect pause windows?">
+  **Yes.** If a retry is scheduled during a pause window, it waits until the
+  pause window ends before attempting the call.
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Audio & Media
+
+<AccordionGroup>
+
+<Accordion title="What audio formats are supported?">
+Upload audio files via `POST /audio-management/upload` using `multipart/form-data`. The system processes and converts files automatically.
+
+Supported content types include:
+
+- `audio/wav`
+- `audio/mp3`
+- `audio/mpeg`
+
+Audio is processed to telephony-optimized format (8kHz sample rate, mono).
+
+</Accordion>
+
+<Accordion title="How do I upload audio files?">
+```
+POST /audio-management/upload
+Content-Type: multipart/form-data
+
+file: [binary audio file]
+title: "Welcome Message"
+description: "Greeting for customers"
+usageType: "welcome"
+tags: ["greeting", "intro"]
+
+```
+
+Response includes the `id` to use in your Play nodes.
+</Accordion>
+
+<Accordion title="What's a dictionary used for?">
+Dictionaries map keys to audio files for dynamic content. For example, a "Numbers" dictionary might have:
+
+- Key `"1"` → audio of "one" spoken
+- Key `"100"` → audio of "one hundred" spoken
+- Key `"thousand"` → audio of "thousand" spoken
+
+Use dictionaries in Play nodes to dynamically construct spoken content like amounts or dates.
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="I'm getting 401 Unauthorized">
+**Causes:**
+
+- API key expired or revoked
+- Missing or malformed Authorization header
+- Typo in your API key
+
+**Solutions:**
+
+1. Check header format: `x-api-key YOUR_API_KEY`
+2. Verify you're using the correct API key
+3. [Contact our team](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) if you need a new API key
+</Accordion>
+
+<Accordion title="I'm getting 429 Too Many Requests">
+You've hit the rate limit. Solutions:
+
+1. **Reduce request frequency** - Add delays between calls
+2. **Implement exponential backoff** - Wait longer after each retry
+3. **Batch operations** - Use bulk endpoints like `/contact/upsert`
+4. **Check response headers** for rate limit details
+</Accordion>
+
+<Accordion title="My program won't start">
+Verify:
+
+1. **`startAt` is in the future** - Or already passed if you want immediate start
+2. **Audience is not empty** - `AudienceEmptyError` if no contacts
+3. **No existing running execution** - `ExecutionAlreadyRunningError`
+4. **Program status is `active`** - Not `draft` or `archived`
+
+Launch with: `POST /programs/:id/launch`
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Still have questions?
+
+If you couldn't find the answer you're looking for:
+
+- Check our [Troubleshooting Guide](/help-center/troubleshooting)
+- Browse the [Core Concepts](/core-concepts/overview) documentation
+- Contact our support team

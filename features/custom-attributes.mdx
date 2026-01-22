@@ -1,0 +1,294 @@
+---
+title: "Custom Attributes"
+description: "Store additional data on contacts for personalization"
+---
+
+Standard contact fields don't cover every business need. Custom attributes let you store additional data on contacts and use it to personalize call experiences.
+
+## What custom attributes do
+
+Custom attributes extend contacts with your own fields:
+
+- Store business-specific data (account balances, subscription status)
+- Personalize call flows (play different messages based on values)
+- Segment contacts (use attributes in conditions)
+- Track additional information (preferences, history)
+
+## Attribute types
+
+| Type           | Description    | Example              |
+| -------------- | -------------- | -------------------- |
+| `text`         | Free-form text | Customer notes       |
+| `number`       | Numeric values | Account balance      |
+| `boolean`      | True/false     | Is premium customer  |
+| `date`         | Date values    | Contract expiry      |
+| `phone_number` | Phone format   | Alternate phone      |
+| `email`        | Email format   | Billing email        |
+| `url`          | URL format     | Customer portal link |
+
+## Creating attributes
+
+Define an attribute at the organization level:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/custom-attributes \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "displayName": "Account Balance",
+    "description": "Current account balance in MAD",
+    "type": "number"
+  }'
+```
+
+Response:
+
+```json
+{
+  "id": "attr-uuid",
+  "organizationId": "org-uuid",
+  "name": "account_balance",
+  "displayName": "Account Balance",
+  "description": "Current account balance in MAD",
+  "type": "number",
+  "createdAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+<Note>
+The `name` field is auto-generated as a slug from `displayName`.
+</Note>
+
+## Listing attributes
+
+View all defined attributes:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/custom-attributes \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Getting a specific attribute
+
+```bash
+curl -X GET https://api.gomobile.ma/api/custom-attributes/ATTRIBUTE_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Updating attributes
+
+Modify the description (type cannot be changed):
+
+```bash
+curl -X PUT https://api.gomobile.ma/api/custom-attributes/ATTRIBUTE_ID \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Updated description for this attribute"
+  }'
+```
+
+## Deleting attributes
+
+Remove an attribute:
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/custom-attributes/ATTRIBUTE_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+<Warning>
+This doesn't delete the values on contacts, but they become inaccessible.
+</Warning>
+
+## Setting values on contacts
+
+When creating or updating contacts, include custom attributes:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "firstName": "Fatima",
+    "lastName": "Benali",
+    "primaryPhone": "+212612345678",
+    "customAttributes": {
+      "account_balance": 1500,
+      "is_premium": true,
+      "subscription_tier": "gold",
+      "contract_expiry": "2025-12-31"
+    }
+  }'
+```
+
+Use the `name` (slug) as the key, not `displayName`.
+
+## Reading values from contacts
+
+When you fetch a contact with `/contact/:id`, custom attributes are included:
+
+```json
+{
+  "id": "contact-uuid",
+  "firstName": "Fatima",
+  "lastName": "Benali",
+  "primaryPhone": "+212612345678",
+  "customAttributes": [
+    {
+      "name": "account_balance",
+      "displayName": "Account Balance",
+      "type": "number",
+      "value": 1500,
+      "isLocked": false
+    },
+    {
+      "name": "is_premium",
+      "displayName": "Is Premium",
+      "type": "boolean",
+      "value": true,
+      "isLocked": false
+    }
+  ]
+}
+```
+
+## Using attributes in flows
+
+### In Play nodes (dynamic content)
+
+```json
+{
+  "type": "number",
+  "value": { "source": "customAttribute", "attributeName": "account_balance" },
+  "mode": "full",
+  "language": "ar"
+}
+```
+
+### In Condition nodes (branching)
+
+```json
+{
+  "type": "condition",
+  "config": {
+    "expression": {
+      "type": "simple",
+      "variable": {
+        "type": "custom_attribute",
+        "name": "is_premium"
+      },
+      "operator": "eq",
+      "value": true
+    }
+  },
+  "outputs": {
+    "onTrue": "premium-flow",
+    "onFalse": "standard-flow"
+  }
+}
+```
+
+### Complex conditions
+
+```json
+{
+  "expression": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "simple",
+        "variable": { "type": "custom_attribute", "name": "account_balance" },
+        "operator": "gt",
+        "value": 0
+      },
+      {
+        "type": "simple",
+        "variable": { "type": "custom_attribute", "name": "days_overdue" },
+        "operator": "gte",
+        "value": 30
+      }
+    ]
+  }
+}
+```
+
+## Bulk updates
+
+Update attributes on multiple contacts using upsert:
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact/upsert \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {
+        "primaryPhone": "+212612345678",
+        "customAttributes": { "account_balance": 1600 }
+      },
+      {
+        "primaryPhone": "+212612345679",
+        "customAttributes": { "account_balance": 2200 }
+      }
+    ]
+  }'
+```
+
+Contacts are matched by phone number and attributes are updated.
+
+## Common use cases
+
+### Payment reminders
+
+```
+account_balance (number) - Amount owed
+days_overdue (number) - Days past due
+last_payment_date (date) - Most recent payment
+```
+
+### Subscription management
+
+```
+subscription_tier (text) - free, basic, premium
+renewal_date (date) - When subscription renews
+is_auto_renew (boolean) - Auto-renewal enabled
+```
+
+### Customer service
+
+```
+preferred_language (text) - ar, fr, en
+last_contact_date (date) - Last interaction
+satisfaction_score (number) - 1-10 rating
+```
+
+## Best practices
+
+1. **Define before importing** - Create attributes before bulk importing contacts
+2. **Use descriptive names** - Clear display names help everyone
+3. **Choose appropriate types** - Enables validation and proper handling
+4. **Document in descriptions** - Explain what each attribute means
+5. **Keep it focused** - Don't create attributes you won't use
+6. **Consider privacy** - Only store what you need
+
+## Limitations
+
+- Attribute names must be unique within an organization
+- Type cannot be changed after creation
+- Values must match the attribute type
+- Maximum 100 custom attributes per organization (varies by plan)
+
+## Related topics
+
+<CardGroup cols="2">
+
+<Card title="Contacts" icon="user" href="/core-concepts/contacts">
+  Managing contact data.
+</Card>
+
+<Card title="Call Flows" icon="diagram-project" href="/features/call-flows">
+  Using attributes in flows.
+</Card>
+
+</CardGroup>

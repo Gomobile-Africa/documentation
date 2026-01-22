@@ -1,0 +1,249 @@
+---
+title: "Making Your First Call"
+description: "Complete walkthrough of making an automated call with Gomobile"
+---
+
+Let's walk through the complete process of making an automated call with Gomobile. By the end of this guide, you'll have created a contact, built an audience, set up a simple flow, and launched a program that actually places a call.
+
+## Before you start
+
+Make sure you have:
+
+- An authenticated session (see [Authentication](/getting-started/authentication))
+- Your access token ready
+- A phone number you can call for testing
+
+We'll use curl commands throughout, but you can adapt these to any HTTP client.
+
+## Step 1: Create a contact
+
+First, add the person you want to call:
+
+```bash
+# Create a new contact in your Gomobile account
+curl -X POST https://api.gomobile.ma/api/contact \
+  -H "x-api-key: YOUR_API_KEY" \    # Your API key for authentication
+  -H "Content-Type: application/json" \
+  -d '{
+    "firstName": "Test",                        # Contact's first name
+    "lastName": "User",                         # Contact's last name
+    "primaryPhone": "+212612345678"             # Phone number to call (with country code)
+  }'
+```
+
+Save the `id` from the response—you'll need it in the next step.
+
+```json
+{
+  "id": "contact-uuid-here",
+  "firstName": "Test",
+  "lastName": "User",
+  "primaryPhone": "+212612345678",
+  "createdAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+Save the `id` value - you'll need it for the next steps.
+
+## Step 2: Create an audience
+
+Audiences are groups of contacts. Even for a single contact, you need an audience:
+
+```bash
+# Create an audience to group contacts for your campaign
+curl -X POST https://api.gomobile.ma/api/audience \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Audience",                    # A descriptive name for this group
+    "description": "For testing my first call"  # Optional description
+  }'
+```
+
+Save the audience `id` from the response.
+
+## Step 3: Add the contact to the audience
+
+Link your contact to the audience:
+
+```bash
+# Add one or more contacts to an existing audience
+curl -X POST https://api.gomobile.ma/api/audience/AUDIENCE_ID/add-contacts \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contacts": ["CONTACT_ID"]                  # Array of contact IDs to add
+  }'
+```
+
+## Step 4: Create a flow
+
+Flows define what happens during a call. Here's a simple flow that dials the contact, plays a greeting message, and hangs up:
+
+```bash
+# Create a call flow that defines the call logic
+curl -X POST https://api.gomobile.ma/api/flows \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Simple Greeting Flow",
+    "description": "A basic flow that plays a welcome message",
+    "graph": {
+      "startNodeId": "dial-1",                  # Which node to start with
+      "nodes": [
+        {
+          "id": "dial-1",                       # Unique node identifier
+          "type": "dial",                       # Node type: initiates the call
+          "label": "Dial Contact",
+          "config": {
+            "timeout": 30000,                   # Wait 30 seconds for answer
+            "enableAMD": false                  # Answering Machine Detection off
+          },
+          "outputs": {                          # Define what happens next based on outcome
+            "onAnswer": "play-1",               # If answered → play the greeting
+            "onNoAnswer": "hangup-1",           # If no answer → end the call
+            "onBusy": "hangup-1"                # If busy → end the call
+          }
+        },
+        {
+          "id": "play-1",                       # Greeting node
+          "type": "play",                       # Node type: plays audio to the caller
+          "label": "Play Greeting",
+          "config": {
+            "audioId": "AUDIO_ID"               # ID of your pre-recorded audio file
+          },
+          "outputs": {
+            "onEnd": "hangup-1"                 # After playing → end the call
+          }
+        },
+        {
+          "id": "hangup-1",
+          "type": "hangup",                     # Node type: ends the call
+          "label": "End Call",
+          "config": {
+            "reason": "Call completed",
+            "hangupType": "normal"
+          }
+        }
+      ]
+    }
+  }'
+```
+
+Save the flow `id`.
+
+<Note>
+Replace `AUDIO_ID` with the ID of your pre-recorded audio file. You can upload audio files via the [Audio Management](/features/audio-management) API. See the [Designing Call Flows](/guides/designing-call-flows) guide for more advanced examples with menus and user input handling.
+</Note>
+
+## Step 5: Create a program
+
+Programs tie everything together. They specify which audience to call, which flow to use, and when to execute:
+
+```bash
+# Create a program (campaign) that orchestrates calls
+curl -X POST https://api.gomobile.ma/api/programs \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My First Campaign",
+    "audienceId": "AUDIENCE_ID",                # Which contacts to call
+    "flowId": "FLOW_ID",                        # Which flow to execute
+    "startAt": "2025-01-20T10:00:00Z",          # When to start (ISO 8601 format)
+    "didPool": ["+212500000001"],               # Caller ID numbers (must be yours)
+    "retryStrategy": {
+      "type": "none"                            # No retries for this test
+    }
+  }'
+```
+
+The `didPool` contains the phone numbers that will show up as the caller ID. Make sure you're using numbers assigned to your account.
+
+## Step 6: Launch the program
+
+Programs start in draft status. To execute them, launch an execution:
+
+```bash
+# Launch the program to start making calls
+curl -X POST https://api.gomobile.ma/api/programs/PROGRAM_ID/launch \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "executionId": "execution-uuid-here"
+}
+```
+
+Use this `executionId` to track progress.
+
+## Step 7: Monitor the execution
+
+Check how your execution is progressing:
+
+```bash
+# Get the current status of your program execution
+curl -X GET https://api.gomobile.ma/api/program-executions/EXECUTION_ID \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+You'll see the status and progress counters:
+
+```json
+{
+  "id": "execution-uuid",
+  "status": "running",
+  "totalContacts": 1,
+  "contactsCompleted": 0,
+  "contactsFailed": 0,
+  "contactsPending": 1,
+  "contactsInProgress": 0
+}
+```
+
+The fields show: `status` (pending/running/completed/failed), `totalContacts`, `contactsCompleted`, `contactsFailed`, `contactsPending`, and `contactsInProgress`.
+
+## Alternative: Ad-hoc calls
+
+If you don't need the full program infrastructure, you can make one-off calls directly:
+
+```bash
+# Make a single call without creating a program
+curl -X POST https://api.gomobile.ma/api/call-requests \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fromNumber": "+212500000001",              # Your caller ID
+    "contactId": "CONTACT_ID",                  # Who to call
+    "flowId": "FLOW_ID",                        # Which flow to use
+    "retry": { "type": "none" }                 # No retries
+  }'
+```
+
+This is useful for testing flows or making individual calls outside of a campaign.
+
+## What's next?
+
+You've made your first call! Here's where to go from here:
+
+<CardGroup cols="2">
+
+<Card title="Core Concepts" icon="book" href="/core-concepts/overview">
+  Understand how all the pieces fit together.
+</Card>
+
+<Card title="Designing Call Flows" icon="diagram-project" href="/guides/designing-call-flows">
+  Build more sophisticated call logic with audio playback.
+</Card>
+
+<Card title="Retry Strategies" icon="rotate" href="/features/retry-strategies">
+  Handle failed calls gracefully.
+</Card>
+
+<Card title="Audio Management" icon="volume-high" href="/features/audio-management">
+  Upload and manage your audio files.
+</Card>
+
+</CardGroup>

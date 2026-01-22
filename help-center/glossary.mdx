@@ -1,0 +1,190 @@
+---
+title: "Glossary"
+description: "Key terms and definitions used throughout Gomobile"
+---
+
+Key terms and definitions used throughout Gomobile.
+
+---
+
+## A
+
+### AMD (Answering Machine Detection)
+
+A feature that automatically detects whether a call is answered by a human or a voicemail/answering machine. When enabled on a Dial node, it routes the call to different outputs (`onAnswer` for humans, `onVoicemail` for machines).
+
+---
+
+### API Key
+
+A long-lived authentication credential used for all API communication. API keys are provisioned by the Gomobile team and can have a prefix (e.g., `prod_`, `dev_`) for easy identification. [Request an API key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) to get started.
+
+---
+
+### Audience
+
+A named group of contacts that can be targeted by a program. Contacts can belong to multiple audiences. When a program launches, it creates a snapshot of the audience's contacts at that moment.
+
+---
+
+## C
+
+### Call Request
+
+A request to initiate an outbound call to a specific contact using a defined flow. Includes the contact ID, flow ID, and the phone number to call from.
+
+---
+
+### Campaign
+
+See **Program**. A campaign is the execution of a program against an audience.
+
+---
+
+### Contact
+
+An individual person in your database with at least a phone number. Contacts can have additional fields like name, email, address, and custom attributes. Phone numbers must be in E.164 format (e.g., `+212612345678`).
+
+---
+
+### Custom Attribute
+
+A user-defined field that extends the contact data model. Types include: `text`, `number`, `boolean`, `date`, `phone_number`, `email`, and `url`. Custom attributes can be referenced in flows using the `customAttribute` source type.
+
+---
+
+## D
+
+### Dictionary
+
+A collection of audio files mapped to keys (like "100", "thousand", "and") used to dynamically construct spoken content. Supports Arabic (`ar`) and French (`fr`) languages. System dictionaries are shared; organization dictionaries are private.
+
+---
+
+### DTMF (Dual-Tone Multi-Frequency)
+
+The tones generated when pressing phone keypad buttons (0-9, *, #). The DTMF node collects these inputs and can branch to different nodes based on which digit was pressed.
+
+---
+
+## E
+
+### Execution
+
+A running instance of a program. Tracks progress with counters: `totalContacts`, `contactsCompleted`, `contactsFailed`, `contactsPending`, `contactsInProgress`. Statuses include: `scheduled`, `running`, `paused`, `completed`, `stopped`, `cancelled`.
+
+---
+
+## F
+
+### Flow
+
+A node-based definition of call logic. Contains a graph of connected nodes (Dial, Play, DTMF, Record, Condition, Set Variable, Hangup) that determine what happens during a call. Flows are reusable across multiple programs.
+
+---
+
+### Flow Node
+
+An individual step within a flow. Each node has a type, configuration, and outputs that connect to other nodes. Terminal nodes (like Hangup) have no outputs.
+
+---
+
+## N
+
+### Node
+
+See **Flow Node**. Available types: `dial`, `answer`, `hangup`, `play`, `record`, `dtmf`, `condition`, `set_variable`.
+
+---
+
+## O
+
+### Organization
+
+A tenant account that contains users, contacts, audiences, flows, programs, and other resources. Has properties like country, timezone, currency, industry, and plan (trial, free, basic, advanced, enterprise).
+
+---
+
+## P
+
+### Pause Window
+
+A time range when calls should NOT be made. Defined per weekday (e.g., lunch break on Monday 12:00-14:00) or as specific date ranges (e.g., Christmas Day). The system skips pulling contacts during paused periods.
+
+---
+
+### Program
+
+A calling campaign configuration that combines an audience, a flow, a DID pool, retry strategy, and scheduling. Programs can be launched to create executions. Status can be: `draft`, `active`, or `archived`.
+
+---
+
+## R
+
+### Retry Strategy
+
+Rules for retrying failed calls. Three types:
+
+- `none`: No retries
+- `fixed_delay`: Retry after X minutes, up to Y attempts
+- `scheduled`: Retry at specific dates/times
+
+---
+
+## S
+
+### System Variable
+
+Built-in variables available during flow execution:
+
+- `sys.callId` - Current call ID
+- `sys.callStatus` - Call status
+- `sys.callDirection` - Inbound or outbound
+- `sys.answeredBy` - Human or machine
+- `sys.contactId` - Contact ID
+- `sys.contactPhone` - Contact's phone number
+- `sys.contactName` - Contact's full name
+- `sys.organizationId` - Organization ID
+- `sys.programId` - Program ID
+
+---
+
+## T
+
+### TTS (Text-to-Speech)
+
+Technology that converts written text into spoken audio. Used in Play nodes to dynamically speak content like names, numbers, or dates.
+
+---
+
+## V
+
+### Variable
+
+A named value that can be set, read, and modified during flow execution. Types include flow variables (set during execution), custom attributes (from contact data), contact fields, and system variables.
+
+---
+
+### Voicemail
+
+When AMD detects an answering machine, the call is routed to the `onVoicemail` output of the Dial node. You can play a message and hang up, or handle it differently.
+
+---
+
+## Related Resources
+
+<CardGroup cols="3">
+
+<Card title="Core Concepts" icon="book" href="/core-concepts/overview">
+  Understanding the fundamentals.
+</Card>
+
+<Card title="FAQ" icon="circle-question" href="/help-center/faq">
+  Common questions answered.
+</Card>
+
+<Card title="Getting Started" icon="rocket" href="/getting-started/overview">
+  Begin your journey.
+</Card>
+
+</CardGroup>
