@@ -1,0 +1,89 @@
+---
+title: "Authentication"
+description: "How to authenticate your API requests with Gomobile"
+---
+
+Gomobile uses API key authentication. Every API request requires a valid API key in the request header.
+
+## Getting your API key
+
+API keys are provisioned by the Gomobile team.
+
+<Info>
+**Need API access?** [Request your API key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) and our team will set you up within 24 hours.
+</Info>
+
+Once you receive your API key, store it securely and use it for all API requests.
+
+## How to authenticate
+
+Include your API key in the `x-api-key` header of every request:
+
+```bash
+x-api-key: YOUR_API_KEY
+```
+
+<Warning>
+**Important:** Use `x-api-key` header, not `Authorization: Bearer`. Using Bearer token format will result in a `401 Unauthorized` error.
+</Warning>
+
+## Making authenticated requests
+
+Here's an example of an authenticated request to verify your API key:
+
+```bash
+curl -X GET https://api.gomobile.ma/api/users/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "user-uuid",
+  "email": "you@yourcompany.com",
+  "firstName": "Your",
+  "lastName": "Name",
+  "organization": {
+    "id": "org-uuid",
+    "name": "Your Company",
+    "slug": "your-company"
+  }
+}
+```
+
+## Using environment variables
+
+Store your API key as an environment variable to keep it secure:
+
+```bash
+# Store your key as an environment variable
+export GOMOBILE_API_KEY="your-api-key"
+
+# Use it in requests
+curl -X GET https://api.gomobile.ma/api/users/me \
+  -H "x-api-key: $GOMOBILE_API_KEY"
+```
+
+## Security best practices
+
+- **Never commit API keys to version control**
+- **Use environment variables** or a secrets manager
+- **Keep your API key private** — don't share it in public forums, emails, or chat
+- **Contact support** immediately if your key is compromised
+
+## Common authentication errors
+
+| Error | Meaning | Solution |
+|-------|---------|----------|
+| `401 Unauthorized` | Invalid, missing, or wrong header format | Verify your API key and ensure you're ung `x-api-key` header (not `Authorization: Bearer`) |
+| `403 Forbidden` | Valid token but insufficient permissions | Contact support to check your account permissions |
+
+## Next steps
+
+Ready to make your first call?
+
+<Card title="Making Your First Call" icon="phone" href="/getting-started/making-your-first-call">
+  A complete walkthrough of creating contacts, audiences, flows, and launching your first campaign.
+</Card>
+
