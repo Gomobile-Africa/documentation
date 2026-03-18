@@ -1,111 +1,689 @@
 ---
 title: "Programs"
-description: "Campaign configurations that combine audience, flow, schedule, and retry rules"
+description: "Campaign configurations combining audience, flow, schedule, and retry rules"
 ---
 
-Programs are campaign configurations. They combine an audience, a flow, a schedule, and retry rules into a launchable package. Think of programs as templates that you can execute multiple times.
+Manage programs (calling campaign templates) and their executions.
 
-## What programs define
+Base paths:
+- `/programs` - Program management
+- `/program-executions` - Execution management
 
-A program specifies:
+---
 
-| Property        | Purpose                    |
-| --------------- | -------------------------- |
-| `name`          | Identifies the campaign    |
-| `audienceId`    | Who to call                |
-| `flowId`        | What to do during the call |
-| `startAt`       | When to begin              |
-| `stopAt`        | When to stop (optional)    |
-| `didPool`       | Which numbers to call from |
-| `retryStrategy` | How to handle failed calls |
-| `pauseWindows`  | When NOT to make calls     |
+## Types
 
-## Creating a program
+<Accordion title="Type Definitions">
 
-```bash
-curl -X POST https://api.gomobile.ma/api/programs \
-  -H "x-api-key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "January Payment Reminders",
-    "audienceId": "audience-uuid",
-    "flowId": "flow-uuid",
-    "startAt": "2025-01-20T09:00:00Z",
-    "stopAt": "2025-01-20T18:00:00Z",
-    "didPool": ["+212500000001", "+212500000002"],
-    "retryStrategy": {
-      "type": "fixed_delay",
-      "delayMinutes": 60,
-      "maxRetries": 2
-    },
-    "pauseWindows": {
-      "monday": [
-        { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
-      ],
-      "tuesday": [
-        { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
-      ]
-    }
-  }'
-```
+```typescript
+// ============================================
+// RETRY STRATEGY
+// ============================================
 
-Response:
+type RetryStrategy =
+  | { type: 'none' }
+  | { type: 'fixed_delay'; delayMinutes: number; maxRetries: number }
+  | { type: 'scheduled'; retryDates: string[] };  // ISO date strings
 
-```json
-{
-  "id": "program-uuid",
-  "name": "January Payment Reminders",
-  "status": "draft",
-  "audienceId": "audience-uuid",
-  "flowId": "flow-uuid",
-  "startAt": "2025-01-20T09:00:00.000Z",
-  "stopAt": "2025-01-20T18:00:00.000Z",
-  "didPool": ["+212500000001", "+212500000002"],
-  "retryStrategy": {
-    "type": "fixed_delay",
-    "delayMinutes": 60,
-    "maxRetries": 2
-  },
-  "createdAt": "2025-01-15T10:30:00.000Z"
+// ============================================
+// PAUSE WINDOWS
+// ============================================
+
+interface PauseWindowTime {
+  hour: number;    // 0-23
+  minute: number;  // 0-59
+}
+
+interface PauseWindowItem {
+  startAt: PauseWindowTime;
+  endAt: PauseWindowTime;
+}
+
+interface PauseWindowAdvancedItem {
+  startAt: string;  // ISO date string
+  endAt: string;    // ISO date string
+}
+
+interface PauseWindows {
+  sunday?: PauseWindowItem[];
+  monday?: PauseWindowItem[];
+  tuesday?: PauseWindowItem[];
+  wednesday?: PauseWindowItem[];
+  thursday?: PauseWindowItem[];
+  friday?: PauseWindowItem[];
+  saturday?: PauseWindowItem[];
+  advanced?: PauseWindowAdvancedItem[];  // Specific date ranges (holidays, etc.)
+}
+
+// ============================================
+// AUTO-PAUSE RULES
+// ============================================
+
+/**
+ * Auto-pause rules: pause execution when a node has been executed a certain
+ * number of times across all calls. Counting is implicit — every time the
+ * specified node executes in any call, the counter increments.
+ */
+interface AutoPauseRule {
+  /** Node ID to count executions for */
+  nodeId: string;
+  /** Threshold value that triggers pause */
+  threshold: number;
+  /** Whether to reset this counter when execution is resumed */
+  resetOnResume: boolean;
+}
+
+// ============================================
+// PROGRAM MODE
+// ============================================
+
+type ProgramMode = 'batch' | 'live';
+
+// ============================================
+// TRIGGER CONDITION (live mode)
+// ============================================
+
+interface TriggerOffset {
+  days: number;     // >= 0
+  hours: number;    // 0-23
+  minutes: number;  // 0-59
+}
+
+/** V1: date-based trigger condition */
+interface DateTriggerCondition {
+  type: 'date';
+  attributeName: string;            // custom attribute slug (e.g. 'date_echeance')
+  direction: 'before' | 'after';   // before = subtract offset, after = add offset
+  offset: TriggerOffset;
+}
+
+/** Discriminated union — V1 only supports date, V2 will add number/boolean/text */
+type TriggerCondition = DateTriggerCondition;
+
+// ============================================
+// PROGRAM STATUS
+// ============================================
+
+type ProgramStatus = 'draft' | 'active' | 'archived';
+
+// ============================================
+// EXECUTION STATUS
+// ============================================
+
+type ExecutionStatus =
+  | 'scheduled'         // Waiting for scheduledStartAt
+  | 'running'           // Actively processing contacts
+  | 'paused'            // Manually paused, can resume
+  | 'paused_no_credits' // Auto-paused due to insufficient credits
+  | 'paused_threshold'  // Auto-paused due to counter threshold reached
+  | 'completed'         // All contacts processed
+  | 'stopped'           // Reached scheduledStopAt, remaining skipped
+  | 'cancelled';        // Manually cancelled
+
+// ============================================
+// REQUEST TYPES
+// ============================================
+
+interface CreateProgramRequest {
+  /** Program name */
+  name: string;
+
+  /** Program mode (default: 'batch') */
+  mode?: ProgramMode;
+
+  /** Audience ID to call (required for batch, must not be set for live) */
+  audienceId?: string;  // UUID
+
+  /** Trigger condition (required for live, must not be set for batch) */
+  triggerCondition?: TriggerCondition;
+
+  /** Flow ID to execute during calls */
+  flowId: string;  // UUID
+
+  /** Scheduled start time (ISO 8601) */
+  startAt: string;
+
+  /** Optional: Scheduled stop time (ISO 8601) */
+  stopAt?: string;
+
+  /** Pool of DID UUIDs for outbound calls (min 1 required, from GET /dids/available) */
+  didPool: string[];  // UUID[]
+
+  /** Retry strategy for failed calls */
+  retryStrategy: RetryStrategy;
+
+  /** Optional: Time windows when calls should NOT be made */
+  pauseWindows?: PauseWindows;
+
+  /** Optional: Auto-pause rules (pause when counters reach thresholds) */
+  autoPauseRules?: AutoPauseRule[];
+}
+
+interface UpdateProgramRequest {
+  name?: string;
+  audienceId?: string;
+  flowId?: string;
+  startAt?: string;
+  stopAt?: string;
+  didPool?: string[];  // UUID[]
+  retryStrategy?: RetryStrategy;
+  pauseWindows?: PauseWindows;
+  autoPauseRules?: AutoPauseRule[];
+  triggerCondition?: TriggerCondition;
+}
+
+// ============================================
+// RESPONSE TYPES
+// ============================================
+
+interface DidPoolItem {
+  id: string;        // DID UUID
+  number: string;    // Phone number (e.g. "+212500000001")
+  country: string;   // ISO country code (e.g. "MA")
+}
+
+interface ProgramResponse {
+  id: string;
+  name: string;
+  mode: ProgramMode;
+  organizationId: string;
+  audienceId: string;  // set at creation (batch) or auto-created at creation (live)
+  flowId: string;
+  status: ProgramStatus;
+  triggerCondition: TriggerCondition | null;  // null for batch programs
+  startAt: string;
+  stopAt: string | null;
+  didPool: DidPoolItem[];  // Resolved DID objects
+  retryStrategy: RetryStrategy;
+  pauseWindows: PauseWindows | null;
+  autoPauseRules: AutoPauseRule[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ExecutionResponse {
+  id: string;
+  programId: string;
+  organizationId: string;
+  audienceId: string;
+  flowId: string;
+  status: ExecutionStatus;
+
+  /** Progress counters */
+  totalContacts: number;
+  contactsCompleted: number;
+  contactsFailed: number;
+  contactsPending: number;
+  contactsInProgress: number;
+
+  /** Timing */
+  scheduledStartAt: string;
+  scheduledStopAt?: string;
+  actualStartAt?: string;
+  actualEndAt?: string;
+
+  /** Auto-pause rules (snapshotted from program at launch time) */
+  autoPauseRules?: AutoPauseRule[] | null;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface LaunchResponse {
+  executionId: string;
+}
+
+// ============================================
+// CONTACT TRIGGER (live programs)
+// ============================================
+
+type ContactTriggerStatus = 'pending' | 'triggered' | 'cancelled';
+
+interface ContactTriggerResponse {
+  id: string;
+  contactId: string;
+  contactName: string | null;
+  contactPhone: string;
+  /** When the trigger fires (ISO 8601) */
+  triggerAt: string;
+  /** The raw date attribute value used to compute triggerAt (ISO 8601) */
+  attributeValue: string;
+  status: ContactTriggerStatus;
+  /** When the trigger was processed (ISO 8601, null if still pending) */
+  triggeredAt: string | null;
+  createdAt: string;
 }
 ```
 
-## Program status
+</Accordion>
 
-Programs have three statuses:
+---
 
-| Status     | Description                     |
-| ---------- | ------------------------------- |
-| `draft`    | Just created, not yet launched  |
-| `active`   | Has been launched at least once |
-| `archived` | No longer in use                |
+## Program Endpoints
 
-## DID pool
+### Create a new program
 
-The `didPool` is a list of phone numbers that can be used as caller ID. Gomobile rotates through these numbers when placing calls.
+**Example (batch mode — default):**
 
-Benefits of using multiple DIDs:
+```json
+// Request
+// POST /programs
+{
+  "name": "Holiday Campaign 2025",
+  "audienceId": "550e8400-e29b-41d4-a716-446655440001",
+  "flowId": "550e8400-e29b-41d4-a716-446655440002",
+  "startAt": "2025-12-20T09:00:00Z",
+  "stopAt": "2025-12-20T18:00:00Z",
+  "didPool": ["123e4567-e89b-12d3-a456-426614174000", "123e4567-e89b-12d3-a456-426614174001"],
+  "retryStrategy": {
+    "type": "fixed_delay",
+    "delayMinutes": 30,
+    "maxRetries": 2
+  },
+  "pauseWindows": {
+    "monday": [
+      { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+    ]
+  },
+  "autoPauseRules": [
+    { "nodeId": "node_abc123", "threshold": 100, "resetOnResume": true }
+  ]
+}
+```
 
-- Distribute call volume
-- Reduce carrier flagging
-- Improve answer rates
+**Example (live mode):**
 
-Make sure all numbers in your DID pool are allocated to your account.
+```json
+// Request
+// POST /programs
+{
+  "name": "Payment Reminder",
+  "mode": "live",
+  "flowId": "550e8400-e29b-41d4-a716-446655440002",
+  "triggerCondition": {
+    "type": "date",
+    "attributeName": "date_echeance",
+    "direction": "before",
+    "offset": { "days": 2, "hours": 15, "minutes": 0 }
+  },
+  "startAt": "2026-03-01T09:00:00Z",
+  "stopAt": "2026-06-01T00:00:00Z",
+  "didPool": ["123e4567-e89b-12d3-a456-426614174000"],
+  "retryStrategy": { "type": "fixed_delay", "delayMinutes": 30, "maxRetries": 2 },
+  "pauseWindows": {
+    "monday": [
+      { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+    ]
+  }
+}
+```
 
-## Retry strategies
+```json
+// Response 201 (batch)
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Holiday Campaign 2025",
+  "mode": "batch",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "audienceId": "550e8400-e29b-41d4-a716-446655440001",
+    "flowId": "550e8400-e29b-41d4-a716-446655440002",
+  "status": "draft",
+  "triggerCondition": null,
+  "startAt": "2025-12-20T09:00:00.000Z",
+  "stopAt": "2025-12-20T18:00:00.000Z",
+  "didPool": [{ "id": "123e4567-e89b-12d3-a456-426614174000", "number": "+212500000001", "country": "MA" }],
+  "retryStrategy": {
+    "type": "fixed_delay",
+    "delayMinutes": 30,
+    "maxRetries": 2
+  },
+  "pauseWindows": {
+    "monday": [
+      { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+    ]
+  },
+  "autoPauseRules": [
+    { "nodeId": "node_abc123", "threshold": 100, "resetOnResume": true }
+  ],
+  "createdAt": "2025-12-17T10:30:00.000Z",
+  "updatedAt": "2025-12-17T10:30:00.000Z"
+}
+```
 
-Three options for handling failed calls:
+**Error Responses:**
 
-### No retries
+| Code | Error | Description |
+|------|-------|-------------|
+| 400 | `ValidationError` | Invalid request (missing fields, invalid format) |
+| 404 | `DidNotFoundError` | DID not found |
+| 400 | `DidNotActiveError` | DID is not active |
+| 400 | `DidNotAccessibleError` | DID is not available to this organization |
 
+**Mode-specific validation:**
+- `mode: 'batch'` (default) — `audienceId` required, `triggerCondition` must not be set
+- `mode: 'live'` — `triggerCondition` required, `audienceId` optional (auto-created if not provided)
+- `triggerCondition.attributeName` must reference an existing date-type custom attribute in the org
+
+---
+
+### List all programs
+
+```json
+// Request
+// GET /programs
+
+// Response 200
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Holiday Campaign 2025",
+    "mode": "batch",
+    "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+    "audienceId": "550e8400-e29b-41d4-a716-446655440001",
+        "flowId": "550e8400-e29b-41d4-a716-446655440002",
+    "status": "active",
+    "triggerCondition": null,
+    "startAt": "2025-12-20T09:00:00.000Z",
+    "stopAt": "2025-12-20T18:00:00.000Z",
+    "didPool": [{ "id": "123e4567-e89b-12d3-a456-426614174000", "number": "+212500000001", "country": "MA" }],
+    "retryStrategy": { "type": "none" },
+    "pauseWindows": null,
+    "autoPauseRules": null,
+    "createdAt": "2025-12-17T10:30:00.000Z",
+    "updatedAt": "2025-12-17T10:30:00.000Z"
+  }
+]
+```
+
+---
+
+### Get program details
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `DidNotFoundError` | DID not found |
+| 400 | `DidNotActiveError` | DID is not active |
+| 400 | `DidNotAccessibleError` | DID is not available to this organization |
+| 404 | `ProgramNotFoundError` | Program not found |
+
+---
+
+### Update a program
+
+```json
+// Request
+//PATCH /programs/550e8400-e29b-41d4-a716-446655440000
+{
+  "name": "Updated Campaign Name",
+  "retryStrategy": { "type": "none" }
+}
+```
+
+```json
+// Response 200
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Updated Campaign Name",
+  ...
+}
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ProgramNotFoundError` | Program not found |
+
+---
+
+### Delete a program
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ProgramNotFoundError` | Program not found |
+
+---
+
+### Launch a new execution of the program
+
+**Batch mode:** Snapshots the audience and starts calling contacts immediately.
+
+**Live mode:** The output audience was auto-created when the program was created. Launch pre-computes triggers for all org contacts with the matching attribute and starts the trigger evaluation cron. Contacts are called as their triggers become due.
+
+```json
+// Request
+// POST /programs/550e8400-e29b-41d4-a716-446655440000/launch
+
+// Response 201
+{
+  "executionId": "770e8400-e29b-41d4-a716-446655440003"
+}
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ProgramNotFoundError` | Program not found |
+| 400 | `ExecutionAlreadyRunningError` | Program already has a running execution |
+| 400 | `AudienceEmptyError` | Audience has no contacts (batch only) |
+| 400 | `EmptyDidPoolError` | All DIDs have been deleted since program creation |
+| 409 | `ProgramStatusConflictError` | Program status changed (concurrent operation) |
+
+---
+
+### List all executions for a program
+
+```json
+// Request
+// GET /programs/550e8400-e29b-41d4-a716-446655440000/executions
+
+// Response 200
+[
+  {
+    "id": "770e8400-e29b-41d4-a716-446655440003",
+    "programId": "550e8400-e29b-41d4-a716-446655440000",
+    "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+    "audienceId": "550e8400-e29b-41d4-a716-446655440001",
+    "flowId": "550e8400-e29b-41d4-a716-446655440002",
+    "status": "completed",
+    "totalContacts": 1500,
+    "contactsCompleted": 1200,
+    "contactsFailed": 250,
+    "contactsPending": 0,
+    "contactsInProgress": 0,
+    "scheduledStartAt": "2025-12-20T09:00:00.000Z",
+    "scheduledStopAt": "2025-12-20T18:00:00.000Z",
+    "actualStartAt": "2025-12-20T09:00:05.000Z",
+    "actualEndAt": "2025-12-20T16:45:30.000Z",
+    "createdAt": "2025-12-20T08:55:00.000Z",
+    "updatedAt": "2025-12-20T16:45:30.000Z"
+  }
+]
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ProgramNotFoundError` | Program not found |
+
+---
+
+### List contact triggers for a live program
+
+```json
+// Request
+// GET /programs/550e8400-e29b-41d4-a716-446655440000/triggers?status=pending
+
+// Response 200
+[
+  {
+    "id": "880e8400-e29b-41d4-a716-446655440010",
+    "contactId": "990e8400-e29b-41d4-a716-446655440020",
+    "contactName": "Ahmed Benali",
+    "contactPhone": "+212600000001",
+    "triggerAt": "2026-03-18T10:00:00.000Z",
+    "attributeValue": "2026-03-20T10:00:00.000Z",
+    "status": "pending",
+    "triggeredAt": null,
+    "createdAt": "2026-03-01T09:00:00.000Z"
+  }
+]
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 400 | `BadRequestException` | Program is not in live mode |
+| 404 | `ProgramNotFoundError` | Program not found |
+
+---
+
+## Program Execution Endpoints
+
+### List all active executions
+
+```json
+// Request
+// GET /program-executions
+
+// Response 200
+[
+  {
+    "id": "770e8400-e29b-41d4-a716-446655440003",
+    "programId": "550e8400-e29b-41d4-a716-446655440000",
+    "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+    "status": "running",
+    "totalContacts": 5000,
+    "contactsCompleted": 2500,
+    "contactsFailed": 100,
+    "contactsPending": 2350,
+    "contactsInProgress": 50,
+    ...
+  }
+]
+```
+
+---
+
+### Get execution details
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ExecutionNotFoundError` | Execution not found |
+
+---
+
+### Pause a running execution
+
+**Notes:**
+- Already-queued calls will continue to completion
+- New contacts will not be pulled until resumed
+- Only valid for executions in `running` status
+
+```json
+// Request
+// PATCH /program-executions/770e8400-e29b-41d4-a716-446655440003/pause
+
+// Response 200
+{
+  "id": "770e8400-e29b-41d4-a716-446655440003",
+  "status": "paused",
+  ...
+}
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ExecutionNotFoundError` | Execution not found |
+| 400 | `InvalidExecutionStateError` | Execution is not in `running` state |
+
+---
+
+### Resume a paused execution
+
+**Optional Request Body:**
+```typescript
+interface ResumeExecutionRequest {
+  /** Updated auto-pause rules. If provided, replaces existing rules. */
+  autoPauseRules?: AutoPauseRule[];
+}
+```
+
+**Notes:**
+- Valid for executions in `paused`, `paused_no_credits`, or `paused_threshold` status
+- When resuming from `paused_threshold`, counters with `resetOnResume: true` are reset to zero
+- If `autoPauseRules` is provided in the body, the execution's rules are updated before resuming
+
+```json
+// Request (no body — simple resume)
+// PATCH /program-executions/770e8400-e29b-41d4-a716-446655440003/resume
+
+// Request (with updated rules)
+// PATCH /program-executions/770e8400-e29b-41d4-a716-446655440003/resume
+{
+  "autoPauseRules": [
+    { "nodeId": "node_abc123", "threshold": 200, "resetOnResume": true }
+  ]
+}
+
+// Response 200
+{
+  "id": "770e8400-e29b-41d4-a716-446655440003",
+  "status": "running",
+  ...
+}
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ExecutionNotFoundError` | Execution not found |
+| 400 | `InvalidExecutionStateError` | Execution is not in `paused`, `paused_no_credits`, or `paused_threshold` state |
+
+---
+
+### Cancel an execution
+
+**Notes:**
+- Remaining pending contacts are marked as `skipped`
+- Already-queued calls will continue to completion
+- Sets execution status to `cancelled`
+
+```
+DELETE /program-executions/770e8400-e29b-41d4-a716-446655440003
+// Response 204 (no body)
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `ExecutionNotFoundError` | Execution not found |
+
+---
+
+## Notes
+
+### Retry Strategy Examples
+
+**No retries:**
 ```json
 { "type": "none" }
 ```
 
-Each contact gets one call attempt. Failed calls are marked as failed.
-
-### Fixed delay
-
+**Fixed delay retries:**
 ```json
 {
   "type": "fixed_delay",
@@ -113,132 +691,102 @@ Each contact gets one call attempt. Failed calls are marked as failed.
   "maxRetries": 3
 }
 ```
+- Retries failed calls after 30 minutes
+- Maximum 3 retries (4 total attempts)
 
-Retry failed calls after a fixed delay. With `maxRetries: 3`, a contact gets up to 4 total attempts (1 initial + 3 retries).
-
-### Scheduled
-
+**Scheduled retries:**
 ```json
 {
   "type": "scheduled",
-  "retryDates": ["2025-01-20T14:00:00Z", "2025-01-21T09:00:00Z"]
+  "retryDates": [
+    "2025-12-17T14:00:00Z",
+    "2025-12-18T09:00:00Z"
+  ]
+}
+```
+- Retries at specific dates/times
+- Number of entries = number of retry attempts
+
+### Pause Windows
+
+Pause windows define time ranges when calls should NOT be made. The orchestrator respects these windows and skips pulling contacts during paused periods.
+
+**Weekly pause (lunch break):**
+```json
+{
+  "monday": [
+    { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+  ],
+  "tuesday": [
+    { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+  ]
 }
 ```
 
-Retry at specific times. The number of dates equals the number of retry attempts.
+**Specific date range (holiday):**
+```json
+{
+  "advanced": [
+    { "startAt": "2025-12-25T00:00:00Z", "endAt": "2025-12-26T00:00:00Z" }
+  ]
+}
+```
 
-See [Retry Strategies](/features/retry-strategies) for detailed guidance.
+### Execution Lifecycle
 
-## Pause windows
+```
+scheduled → running → completed
+                ↓
+              paused ─────────────→ running (resume)
+              paused_no_credits ──→ running (resume)
+              paused_threshold ───→ running (resume, resets counters if resetOnResume)
+                ↓
+            cancelled
 
-Define times when calls should NOT be made:
+running → stopped (when scheduledStopAt reached)
+running → paused_threshold (auto: counter threshold reached)
+running → paused_no_credits (auto: insufficient credits)
+```
+
+### Progress Counters
+
+- `totalContacts`: Snapshot of audience size at launch (batch), or incremented as triggers fire (live)
+- `contactsCompleted`: Successfully answered calls
+- `contactsFailed`: Exhausted all retries
+- `contactsPending`: Waiting to be called (includes pending_retry)
+- `contactsInProgress`: Currently queued or in-call
+
+Invariant: `totalContacts = contactsCompleted + contactsFailed + contactsPending + contactsInProgress`
+
+**Live mode note:** `totalContacts` starts at 0 and grows as triggers become due. The execution never auto-completes — it runs until manually stopped or `stopAt` is reached.
+
+### Auto-Pause Rules
+
+Auto-pause rules allow automatic pausing of an execution when a node has been executed a certain number of times across all calls. Counters are execution-scoped, Redis-backed, and atomic.
+
+**How it works:**
+1. Define `autoPauseRules` on the program (snapshotted to execution at launch)
+2. Each rule specifies a `nodeId` and a `threshold` — every time that node executes in any call, the counter increments implicitly
+3. When a counter reaches its threshold, the execution is automatically paused with status `paused_threshold`
+4. Resume via `PATCH /program-executions/:id/resume` — counters with `resetOnResume: true` are reset to zero. Optionally pass updated `autoPauseRules` in the request body.
 
 ```json
 {
-  "pauseWindows": {
-    "monday": [
-      {
-        "startAt": { "hour": 12, "minute": 0 },
-        "endAt": { "hour": 14, "minute": 0 }
-      }
-    ],
-    "advanced": [
-      { "startAt": "2025-12-25T00:00:00Z", "endAt": "2025-12-26T00:00:00Z" }
-    ]
-  }
+  "autoPauseRules": [
+    {
+      "nodeId": "node_abc123",
+      "threshold": 100,
+      "resetOnResume": true
+    },
+    {
+      "nodeId": "node_def456",
+      "threshold": 500,
+      "resetOnResume": false
+    }
+  ]
 }
 ```
 
-Use cases:
-
-- Lunch breaks
-- Outside business hours
-- Holidays
-- Special events
-
-See [Pause Windows](/features/pause-windows) for more details.
-
-## Launching a program
-
-Programs don't run automatically when created. You explicitly launch them:
-
-```bash
-curl -X POST https://api.gomobile.ma/api/programs/PROGRAM_ID/launch \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-Response:
-
-```json
-{
-  "executionId": "execution-uuid"
-}
-```
-
-This creates an execution that processes the audience. See [Executions](/core-concepts/executions) for details on monitoring.
-
-## Updating programs
-
-Modify program settings:
-
-```bash
-curl -X PATCH https://api.gomobile.ma/api/programs/PROGRAM_ID \
-  -H "x-api-key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Updated Campaign Name",
-    "retryStrategy": { "type": "none" }
-  }'
-```
-
-Changes don't affect already-running executions. They apply to future launches.
-
-## Listing programs
-
-View all programs:
-
-```bash
-curl -X GET https://api.gomobile.ma/api/programs \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-## Deleting programs
-
-Remove a program:
-
-```bash
-curl -X DELETE https://api.gomobile.ma/api/programs/PROGRAM_ID \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-This stops any running executions and removes the program.
-
-## Best practices
-
-- **Name clearly** - Include dates or campaign type in the name
-- **Test first** - Launch with a small test audience before full deployment
-- **Set stop times** - Prevent runaway campaigns
-- **Use pause windows** - Respect recipients' time
-- **Start with simple retries** - Add complexity as needed
-
-## Related concepts
-
-<CardGroup cols="2">
-
-<Card title="Audiences" icon="users" href="/core-concepts/audiences">
-  Who the program calls.
-</Card>
-
-<Card title="Flows" icon="diagram-project" href="/core-concepts/flows">
-  What happens during the call.
-</Card>
-
-<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
-  Running instances of programs.
-</Card>
-
-<Card title="Retry Strategies" icon="rotate" href="/features/retry-strategies">
-  Handling failures.
-</Card>
-
-</CardGroup>
+- Multiple rules are supported; any single rule reaching its threshold triggers the pause
+- Counting is implicit: no flow changes needed — just specify the node ID in the rules
+- Counter state is cleaned up when executions reach terminal states (completed, stopped, cancelled)

@@ -1,116 +1,146 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Gomobile",
-  "colors": {
-    "primary": "#F4C16C",
-    "light": "#F4C16C",
-    "dark": "#F4C16C"
-  },
-  "favicon": "/logo/logo.svg",
-  "navigation": {
-    "tabs": [
-      {
-        "tab": "Documentation",
-        "groups": [
-          {
-            "group": "Introduction",
-            "pages": [
-              "index"
-            ]
-          },
-          {
-            "group": "Getting Started",
-            "pages": [
-              "getting-started/overview",
-              "getting-started/installation",
-              "getting-started/authentication",
-              "getting-started/making-your-first-call",
-              "getting-started/project-structure"
-            ]
-          },
-          {
-            "group": "Core Concepts",
-            "pages": [
-              "core-concepts/overview",
-              "core-concepts/organizations",
-              "core-concepts/contacts",
-              "core-concepts/audiences",
-              "core-concepts/flows",
-              "core-concepts/programs",
-              "core-concepts/executions"
-            ]
-          },
-          {
-            "group": "Features",
-            "pages": [
-              "features/overview",
-              "features/call-flows",
-              "features/audio-management",
-              "features/dictionaries",
-              "features/custom-attributes",
-              "features/retry-strategies",
-              "features/pause-windows",
-              "features/ad-hoc-calls",
-              "features/call-reports",
-              "features/recordings",
-              "features/credits",
-              "features/sms-programs",
-              "features/execution-reports"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/overview",
-              "guides/building-your-first-campaign",
-              "guides/designing-call-flows",
-              "guides/managing-contacts",
-              "guides/handling-retries"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "openapi": "file.yaml"
-      },
-      {
-        "tab": "Help Center",
-        "groups": [
-          {
-            "group": "Help Center",
-            "pages": [
-              "help-center/overview",
-              "help-center/faq",
-              "help-center/troubleshooting",
-              "help-center/glossary"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "logo": {
-    "light": "/logo/gomobile.svg",
-    "dark": "/logo/gomobile.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Discord",
-        "href": "https://discord.gg/AswfPpZg"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Get API Key",
-      "href": "https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE"
-    }
-  },
-  "footer": {
-    "socials": {
-      "linkedin": "https://www.linkedin.com/company/gomobile-africa"
-    }
+	"$schema": "https://mintlify.com/docs.json",
+	"theme": "mint",
+	"name": "Gomobile",
+	"colors": {
+	  "primary": "#F4C16C",
+	  "light": "#F4C16C",
+	  "dark": "#F4C16C"
+	},
+	"favicon": "/logo/logo.svg",
+	"navigation": {
+	  "tabs": [
+		{
+		  "tab": "Documentation",
+		  "groups": [
+			{
+			  "group": "Introduction",
+			  "pages": [
+				"index"
+			  ]
+			},
+			{
+			  "group": "Getting Started",
+			  "pages": [
+				"getting-started/overview",
+				"getting-started/installation",
+				"getting-started/authentication",
+				"getting-started/making-your-first-call",
+				"getting-started/project-structure"
+			  ]
+			},
+			{
+			  "group": "Core Concepts",
+			  "pages": [
+				"core-concepts/overview",
+				"core-concepts/auth-api",
+				"core-concepts/api-keys",
+				"core-concepts/users",
+				"core-concepts/organizations",
+				"core-concepts/contacts",
+				"core-concepts/audiences",
+				"core-concepts/flows",
+				"core-concepts/programs",
+				"core-concepts/executions"
+			  ]
+			},
+			{
+			  "group": "Features",
+			  "pages": [
+				"features/overview",
+				"features/call-flows",
+				"features/audio-management",
+				"features/dictionaries",
+				"features/custom-attributes",
+				"features/retry-strategies",
+				"features/pause-windows",
+				"features/contact-ingestion",
+				"features/dids",
+				"features/sender-ids",
+				"features/sms",
+				"features/ad-hoc-calls",
+				"features/call-reports",
+				"features/recordings",
+				"features/credits",
+				"features/sms-programs",
+				"features/execution-reports"
+			  ]
+			},
+			{
+			  "group": "Agent Studio",
+			  "pages": [
+				"features/agent-studio/agents",
+				"features/agent-studio/voice-agents",
+				"features/agent-studio/conversations",
+				"features/agent-studio/knowledge-base",
+				"features/agent-studio/end-call-tool",
+				"features/agent-studio/resolution-criteria"
+			  ]
+			},
+			{
+			  "group": "Guides",
+			  "pages": [
+				"guides/overview",
+				"guides/building-your-first-campaign",
+				"guides/designing-call-flows",
+				"guides/managing-contacts",
+				"guides/handling-retries"
+			  ]
+			}
+	  ]
+	},
+
+	{
+	  "tab": "API Reference",
+	  "openapi": "openapi.json"
+	},
+	{
+	  "tab": "Changelog",
+	  "groups": [
+		{
+		  "group": "Changelog",
+		  "pages": [
+			"changelog/overview"
+		  ]
+		}
+	  ]
+	},
+	{
+	  "tab": "Help Center",
+		  "groups": [
+			{
+			  "group": "Help Center",
+			  "pages": [
+				"help-center/overview",
+				"help-center/faq",
+				"help-center/troubleshooting",
+				"help-center/glossary"
+			  ]
+			}
+		  ]
+		}
+	  ]
+	},
+	"logo": {
+	  "light": "/logo/gomobile.svg",
+	  "dark": "/logo/gomobile.svg"
+	},
+	"navbar": {
+	  "links": [
+		{
+		  "label": "Discord",
+		  "href": "https://discord.gg/AswfPpZg"
+		}
+	  ],
+	  "primary": {
+		"type": "button",
+		"label": "Get API Key",
+		"href": "https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE"
+	  }
+	},
+	"footer": {
+	  "socials": {
+		"linkedin": "https://www.linkedin.com/company/gomobile-africa"
+	  }
+	}
   }
-}

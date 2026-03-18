@@ -15,15 +15,14 @@ https://api.gomobile.ma/api
 
 ## Authentication
 
-All API requests require authentication using an API key. Include your key in the `x-api-key` header of every request:
+All API requests require authentication using an **API key**. Include your key in the `x-api-key` header of every request:
 
 ```
 x-api-key: YOUR_API_KEY
 ```
 
 <Info>
-  **Need an API key?** [Request your API
-  key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE)
+  **Need access?** [Request API access](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE)
   and our team will set you up within 24 hours.
 </Info>
 
@@ -94,7 +93,7 @@ When rate limited, you'll receive a `429` status code. Implement exponential bac
 List endpoints support pagination:
 
 ```bash
-GET /contacts?page=1&limit=20
+GET /contact?page=1&limit=20
 ```
 
 Response includes pagination metadata:

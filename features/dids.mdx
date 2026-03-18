@@ -1,0 +1,134 @@
+---
+title: "DIDs"
+description: "Manage phone numbers (DIDs) used as caller IDs"
+---
+
+<Info>
+**Base path: `/dids`**
+</Info>
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============ Request Types ============
+
+interface CreateDidRequest {
+  number: string;               // Digits with optional + prefix, 3-20 chars
+  country: string;              // ISO 3166-1 alpha-2
+  description?: string;         // max 500 characters
+  status?: 'active' | 'inactive' | 'reserved'; // default: 'active'
+}
+
+interface UpdateDidRequest {
+  number?: string;              // Digits with optional + prefix, 3-20 chars
+  country?: string;             // ISO 3166-1 alpha-2
+  description?: string;         // max 500 characters
+  status?: 'active' | 'inactive' | 'reserved';
+}
+
+interface AssignDidRequest {
+  organizationId: string;       // UUID of target organization
+}
+
+// ============ Query Parameters ============
+
+interface DidQueryParams {
+  page?: number;                // default: 1, min: 1
+  limit?: number;               // default: 20, max: 100
+  search?: string;              // searches number, description
+  sortBy?: string;              // number, country, status, createdAt
+  sortOrder?: 'asc' | 'desc';  // default: 'desc'
+  status?: 'active' | 'inactive' | 'reserved';
+  isShared?: boolean;           // filter shared vs private
+  organizationId?: string;      // filter by assigned organization UUID
+}
+
+// ============ Response Types ============
+
+interface DidResponse {
+  id: string;
+  number: string;
+  country: string;
+  description: string | null;
+  isShared: boolean;
+  organizationId: string | null;
+  status: 'active' | 'inactive' | 'reserved';
+  createdAt: string;            // ISO date
+  updatedAt: string;            // ISO date
+  deletedAt: string | null;     // ISO date (soft delete)
+  createdBy: string | null;     // User UUID
+  updatedBy: string | null;     // User UUID
+  deletedBy: string | null;     // User UUID
+}
+
+interface DidListResponse {
+  data: DidResponse[];
+  meta: PaginationMeta;
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+// ============ Available (Org-Level) ============
+
+interface DidAvailableQueryParams {
+  page?: number;               // default: 1
+  limit?: number;              // default: 20, max: 100
+  search?: string;             // searches number
+  sortOrder?: 'asc' | 'desc'; // default: 'desc'
+}
+
+interface DidAvailableResponse {
+  id: string;
+  number: string;
+  country: string;
+  status: 'active' | 'inactive' | 'reserved';
+  isShared: boolean;
+}
+
+interface DidAvailableListResponse {
+  data: DidAvailableResponse[];
+  meta: PaginationMeta;
+}
+```
+
+</Accordion>
+
+### List active DIDs available to the current organization
+
+```bash
+curl -X GET https://api.gomobile.ma/api/dids/available?search=500&page=1&limit=10 \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "number": "500000001",
+      "country": "MA",
+      "status": "active",
+      "isShared": true
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```

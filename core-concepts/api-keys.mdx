@@ -1,0 +1,190 @@
+---
+title: "API Keys"
+description: "Create, list, update, and delete long-lived API keys"
+---
+
+<Info>
+**Base path: `/auth/api-keys`**
+</Info>
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============ Request Types ============
+
+interface CreateApiKeyRequest {
+  name: string;           // max 255 characters
+  prefix: string;         // max 20 characters
+  expiresAt?: string;     // ISO date (optional)
+}
+
+interface UpdateApiKeyRequest {
+  name?: string;          // max 255 characters
+  isActive?: boolean;
+  expiresAt?: string;     // ISO date
+}
+
+// ============ Response Types ============
+
+interface ApiKeyResponse {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  isActive: boolean;
+  expiresAt: string | null;   // ISO date
+  createdAt: string;          // ISO date
+  updatedAt: string;          // ISO date
+}
+
+interface ApiKeyWithSecretResponse extends ApiKeyResponse {
+  secret: string;             // Only returned on creation
+}
+
+interface ApiKeysListResponse {
+  apiKeys: ApiKeyResponse[];
+}
+
+interface MessageResponse {
+  message: string;
+}
+```
+
+</Accordion>
+
+### Create a new API key
+
+```bash
+curl -X POST https://api.gomobile.ma/api/auth/api-keys \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "name": "Production API Key",
+  "prefix": "prod",
+  "expiresAt": "2026-01-01T00:00:00.000Z"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Production API Key",
+  "keyPrefix": "prod",
+  "isActive": true,
+  "expiresAt": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z",
+  "secret": "prod_sk_live_abc123xyz789..."
+}
+```
+
+---
+
+### Get all API keys for the current user and organization
+
+```bash
+curl -X GET https://api.gomobile.ma/api/auth/api-keys \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "apiKeys": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "Production API Key",
+      "keyPrefix": "prod",
+      "isActive": true,
+      "expiresAt": "2026-01-01T00:00:00.000Z",
+      "createdAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "Development API Key",
+      "keyPrefix": "dev",
+      "isActive": true,
+      "expiresAt": null,
+      "createdAt": "2025-01-10T08:00:00.000Z",
+      "updatedAt": "2025-01-10T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### Get a specific API key by ID
+
+```bash
+curl -X GET https://api.gomobile.ma/api/auth/api-keys/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Production API Key",
+  "keyPrefix": "prod",
+  "isActive": true,
+  "expiresAt": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+### Update an existing API key
+
+```bash
+curl -X PUT https://api.gomobile.ma/api/auth/api-keys/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "name": "Production API Key v2",
+  "isActive": false
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Production API Key v2",
+  "keyPrefix": "prod",
+  "isActive": false,
+  "expiresAt": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T12:00:00.000Z"
+}
+```
+
+---
+
+### Delete an API key
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/auth/api-keys/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "message": "API key deleted successfully"
+}
+```

@@ -1,173 +1,167 @@
 ---
 title: "Dictionaries"
-description: "Map words, numbers, and phrases to audio files for dynamic content"
+description: "Dynamic word and number audio playback using dictionary entries"
 ---
 
-Dictionaries map words, numbers, and phrases to audio files. They enable dynamic content playback—reading phone numbers, dates, currency amounts, and custom vocabulary during calls.
+## User Dictionary API
 
-## How dictionaries work
+<Info>
+**Base path: `/dictionaries`**
+</Info>
 
-Instead of pre-recording every possible message, you:
+### Types
 
-1. Record individual words or number sounds
-2. Organize them in a dictionary
-3. Reference the dictionary in your flows
-4. Gomobile assembles the audio dynamically
+<Accordion title="Type Definitions">
 
-For example, to say "Your balance is 1,523 dirhams":
+```typescript
+// ============ Enums ============
 
-- Play "Your balance is" (pre-recorded)
-- Play "1523" (assembled from dictionary: "one", "thousand", "five", "hundred", "twenty", "three")
-- Play "dirhams" (from dictionary)
+type SoundLanguage = 'ar' | 'fr';
 
-## System dictionaries
+// ============ Request Types ============
 
-Gomobile provides built-in dictionaries for common use cases:
+interface CreateDictionaryRequest {
+  name: string;                 // max 256 characters
+  description?: string;
+  language: SoundLanguage;
+}
 
-| Language      | Contents              |
-| ------------- | --------------------- |
-| Arabic (`ar`) | Numbers, common words |
-| French (`fr`) | Numbers, common words |
+interface AddEntryRequest {
+  file: File;                   // multipart/form-data (audio file)
+  key: string;                  // max 256 characters (e.g., "100", "and", "thousand")
+}
 
-System dictionaries include:
+// ============ Response Types ============
 
-- Digits (0-9)
-- Tens (10, 20, 30...)
-- Hundreds (100, 200...)
-- Thousands and millions
-- Common connectors ("and", "point")
+interface DictionaryResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  language: SoundLanguage;
+  organizationId: string | null; // null for system dictionaries
+  isSystem: boolean;
+  createdAt: string;            // ISO date
+  updatedAt: string;            // ISO date
+  deletedAt: string | null;     // ISO date (soft delete)
+  createdBy: string | null;     // User UUID
+  updatedBy: string | null;     // User UUID
+  deletedBy: string | null;     // User UUID
+}
 
-## Creating a custom dictionary
+interface DictionaryEntryResponse {
+  id: string;
+  dictionaryId: string;
+  key: string;
+  audioId: string;
+  createdAt: string;            // ISO date
+  updatedAt: string;            // ISO date
+  deletedAt: string | null;     // ISO date (soft delete)
+  createdBy: string | null;     // User UUID
+  updatedBy: string | null;     // User UUID
+  deletedBy: string | null;     // User UUID
+}
 
-For custom vocabulary, create your own dictionary:
+interface MessageResponse {
+  message: string;
+}
+```
+
+</Accordion>
+
+### Endpoints
+
+#### Create a dictionary
 
 ```bash
 curl -X POST https://api.gomobile.ma/api/dictionaries \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Payment Terms",
-    "description": "Payment-related vocabulary",
-    "language": "ar"
-  }'
+  -d '
+{
+  "name": "Arabic Numbers",
+  "description": "Arabic number pronunciations",
+  "language": "ar"
+}
+'
 ```
 
 Response:
 
 ```json
 {
-  "id": "dictionary-uuid",
-  "name": "Payment Terms",
-  "description": "Payment-related vocabulary",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Arabic Numbers",
+  "description": "Arabic number pronunciations",
   "language": "ar",
-  "organizationId": "org-uuid",
-  "isSystem": false,
-  "createdAt": "2025-01-15T10:30:00.000Z"
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
 }
 ```
 
-## Adding entries
+---
 
-Add audio entries to your dictionary:
-
-```bash
-curl -X POST https://api.gomobile.ma/api/dictionaries/DICTIONARY_ID/entries \
-  -H "x-api-key: YOUR_API_KEY" \
-  -F "file=@/path/to/dirham.wav" \
-  -F "key=dirham"
-```
-
-Common keys for a payment dictionary:
-
-- `dirham` / `dirhams`
-- `payment` / `payments`
-- `due` / `overdue`
-- `balance`
-- `total`
-
-## Using dictionaries in flows
-
-Reference dictionaries in Play nodes:
-
-### Number playback
-
-```json
-{
-  "type": "number",
-  "value": { "source": "customAttribute", "attributeName": "accountBalance" },
-  "mode": "full",
-  "language": "ar",
-  "dictionaryId": null
-}
-```
-
-Setting `dictionaryId` to `null` uses the system dictionary. Specify a custom dictionary ID for custom pronunciations.
-
-Number modes:
-
-| Mode       | Example (1234)                         | Output         |
-| ---------- | -------------------------------------- | -------------- |
-| `full`     | "one thousand two hundred thirty four" | Natural speech |
-| `twoByTwo` | "twelve, thirty-four"                  | Digit pairs    |
-
-### Date playback
-
-```json
-{
-  "type": "date",
-  "value": { "source": "customAttribute", "attributeName": "dueDate" },
-  "mode": "dayMonthYear",
-  "language": "ar",
-  "dictionaryId": null
-}
-```
-
-Date modes:
-
-| Mode           | Example (15/01/2025)                          |
-| -------------- | --------------------------------------------- |
-| `dayMonthYear` | "fifteen January two thousand twenty-five"    |
-| `monthAsWord`  | "January fifteenth, two thousand twenty-five" |
-
-### Word playback
-
-```json
-{
-  "type": "word",
-  "value": "dirham",
-  "language": "ar",
-  "dictionaryId": "custom-dictionary-id"
-}
-```
-
-Or with dynamic values:
-
-```json
-{
-  "type": "word",
-  "value": { "source": "customAttribute", "attributeName": "currencyWord" },
-  "language": "ar",
-  "dictionaryId": "custom-dictionary-id"
-}
-```
-
-## Listing dictionaries
-
-View all dictionaries:
+#### Get all dictionaries
 
 ```bash
 curl -X GET https://api.gomobile.ma/api/dictionaries \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
-Returns both system and custom dictionaries.
+Response:
 
-## Getting dictionary entries
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Arabic Numbers",
+    "description": "Arabic number pronunciations",
+    "language": "ar",
+    "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2025-01-15T10:30:00.000Z",
+    "updatedAt": "2025-01-15T10:30:00.000Z"
+  }
+]
+```
 
-Look up a specific entry:
+---
+
+#### Get a dictionary by ID
+
+---
+
+#### Delete a dictionary
+
+---
+
+#### Add an entry to a dictionary
+
+```
+// Request
+POST /dictionaries/550e8400-e29b-41d4-a716-446655440000/entries
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: multipart/form-data
+
+file: [binary audio file]
+key: "100"
+
+// Response 201
+{
+  "id": "770e8400-e29b-41d4-a716-446655440002",
+  "dictionaryId": "550e8400-e29b-41d4-a716-446655440000",
+  "key": "100",
+  "audioId": "880e8400-e29b-41d4-a716-446655440003",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+#### Get a dictionary entry by key
 
 ```bash
-curl -X GET https://api.gomobile.ma/api/dictionaries/DICTIONARY_ID/entries/dirham \
+curl -X GET https://api.gomobile.ma/api/dictionaries/550e8400-e29b-41d4-a716-446655440000/entries/100 \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -175,73 +169,15 @@ Response:
 
 ```json
 {
-  "id": "entry-uuid",
-  "dictionaryId": "dictionary-uuid",
-  "key": "dirham",
-  "audioId": "audio-uuid",
-  "createdAt": "2025-01-15T10:30:00.000Z"
+  "id": "770e8400-e29b-41d4-a716-446655440002",
+  "dictionaryId": "550e8400-e29b-41d4-a716-446655440000",
+  "key": "100",
+  "audioId": "880e8400-e29b-41d4-a716-446655440003",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
 }
 ```
 
-## Removing entries
+---
 
-Delete an entry:
-
-```bash
-curl -X DELETE https://api.gomobile.ma/api/dictionaries/DICTIONARY_ID/entries/dirham \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-## Deleting dictionaries
-
-Remove a custom dictionary:
-
-```bash
-curl -X DELETE https://api.gomobile.ma/api/dictionaries/DICTIONARY_ID \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-<Note>
-You can't delete system dictionaries.
-</Note>
-
-## Recording tips for dictionaries
-
-1. **Consistent voice** - Use the same voice talent for all entries
-2. **Neutral intonation** - Avoid rising or falling tones that imply sentence endings
-3. **Clean starts and ends** - Trim silence from recordings
-4. **Test combinations** - Listen to how entries sound together
-5. **Consider context** - Numbers may need different pronunciations in different contexts
-
-## Language support
-
-Currently supported:
-
-| Code | Language |
-| ---- | -------- |
-| `ar` | Arabic   |
-| `fr` | French   |
-
-Additional languages can be added via custom dictionaries with appropriate audio.
-
-## Best practices
-
-- **Start with system dictionaries** - They cover most number needs
-- **Custom dictionaries for domain terms** - Industry-specific vocabulary
-- **Organize by purpose** - Separate dictionaries for different use cases
-- **Document your keys** - Keep a reference of what each key means
-- **Test thoroughly** - Listen to dynamic playback with real data
-
-## Related topics
-
-<CardGroup cols="2">
-
-<Card title="Audio Management" icon="volume-high" href="/features/audio-management">
-  Managing audio files.
-</Card>
-
-<Card title="Call Flows" icon="diagram-project" href="/features/call-flows">
-  Using dictionaries in flows.
-</Card>
-
-</CardGroup>
+#### Remove an entry from a dictionary

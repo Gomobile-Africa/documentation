@@ -1,0 +1,380 @@
+---
+title: "Resolution Criteria"
+description: "Define success criteria for AI agent conversations"
+---
+
+Define success criteria for AI agent conversations and track resolution rates.
+
+**Related:** [Agents API](/features/agent-studio/agents) | [End Call Tool](/features/agent-studio/end-call-tool) | [Conversations](/features/agent-studio/conversations)
+
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// REQUEST TYPES
+// ============================================
+
+interface CreateResolutionCriterionRequest {
+  /** Short label for the criterion (1-255 chars) */
+  label: string;
+  /** Detailed description of what constitutes meeting this criterion (min 1 char) */
+  description: string;
+}
+
+interface UpdateResolutionCriterionRequest {
+  /** Updated label (1-255 chars) */
+  label?: string;
+  /** Updated description */
+  description?: string;
+}
+
+// ============================================
+// RESPONSE TYPES
+// ============================================
+
+interface ResolutionCriterionResponse {
+  /** Criterion UUID */
+  id: string;
+  /** Agent UUID */
+  agentId: string;
+  /** Short label */
+  label: string;
+  /** Detailed description */
+  description: string;
+  /** Display position (0-indexed) */
+  position: number;
+  /** ISO 8601 timestamp */
+  createdAt: string;
+  /** ISO 8601 timestamp */
+  updatedAt: string;
+}
+
+// ============================================
+// RESOLUTION METRICS
+// ============================================
+
+interface AgentResolutionMetrics {
+  /** Total conversations for this agent (excluding deleted) */
+  totalConversations: number;
+  /** Conversations where resolution was evaluated (resolved IS NOT NULL) */
+  evaluatedConversations: number;
+  /** Conversations where all criteria were met (resolved = true) */
+  resolvedConversations: number;
+  /** Conversations where any criterion was not met (resolved = false) */
+  unresolvedConversations: number;
+  /** resolvedConversations / evaluatedConversations (0-1, 0 if none evaluated) */
+  resolutionRate: number;
+  /** Per-criterion breakdown */
+  criteriaBreakdown: CriterionBreakdown[];
+}
+
+interface CriterionBreakdown {
+  /** Criterion UUID */
+  criterionId: string;
+  /** Criterion label */
+  label: string;
+  /** Number of conversations where this criterion was met */
+  metCount: number;
+  /** Number of conversations where this criterion was not met */
+  notMetCount: number;
+  /** metCount / (metCount + notMetCount) (0 if no evaluations) */
+  metRate: number;
+}
+
+// ============================================
+// CONVERSATION RESOLUTION DATA
+// ============================================
+
+/**
+ * Stored per criterion per conversation in `conversation_resolutions` table.
+ * Written when the LLM calls end_conversation with resolution data.
+ */
+interface ConversationResolution {
+  /** Resolution UUID */
+  id: string;
+  /** Conversation UUID */
+  conversationId: string;
+  /** Criterion UUID */
+  criterionId: string;
+  /** Whether the criterion was met */
+  met: boolean;
+  /** LLM-provided evidence supporting the judgment */
+  evidence: string;
+  /** ISO 8601 timestamp */
+  createdAt: string;
+}
+```
+
+</Accordion>
+
+---
+
+## Constraints
+
+---
+
+## Inline Criteria via Agent Create/Update
+
+Resolution criteria can be managed inline when creating or updating an agent. See [agents.md](/features/agent-studio/agents) for full agent payload docs.
+
+```json
+// POST /agents or PATCH /agents/:id
+{
+  "name": "Sales Agent",
+  "instructions": "...",
+  "resolutionCriteria": [
+    { "label": "Needs assessment completed", "description": "Customer's requirements and budget were established" },
+    { "label": "Product recommendation made", "description": "At least one product was recommended based on needs" }
+  ]
+}
+```
+
+**Behavior:**
+
+**Important:** On update, this is a declarative replace — existing criterion UUIDs are soft-deleted and new ones are created. This counts as a "significant change" and increments the agent version.
+
+---
+
+### List all active resolution criteria for an agent, ordered...
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | List of criteria (may be empty) |
+| `404` | Agent not found |
+
+```bash
+curl -X GET https://api.gomobile.ma/api/agents/550e8400-e29b-41d4-a716-446655440000/resolution-criteria \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "a1b2c3d4-0000-0000-0000-000000000001",
+    "agentId": "550e8400-e29b-41d4-a716-446655440000",
+    "label": "Needs assessment completed",
+    "description": "Customer's current usage, budget, and pain points were discussed and understood",
+    "position": 0,
+    "createdAt": "2025-01-15T10:30:00.000Z",
+    "updatedAt": "2025-01-15T10:30:00.000Z"
+  },
+  {
+    "id": "a1b2c3d4-0000-0000-0000-000000000002",
+    "agentId": "550e8400-e29b-41d4-a716-446655440000",
+    "label": "Product recommendation made",
+    "description": "At least one specific plan or product was recommended based on the customer's stated needs",
+    "position": 1,
+    "createdAt": "2025-01-15T10:30:00.000Z",
+    "updatedAt": "2025-01-15T10:30:00.000Z"
+  }
+]
+```
+
+---
+
+### Add a resolution criterion to an agent
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `201` | Criterion created |
+| `404` | Agent not found |
+| `409` | Maximum criteria reached (5) or duplicate label |
+
+```bash
+curl -X POST https://api.gomobile.ma/api/agents/550e8400-e29b-41d4-a716-446655440000/resolution-criteria \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "label": "Next step agreed",
+  "description": "Customer agreed to a concrete follow-up action such as a demo, callback, or signup"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "a1b2c3d4-0000-0000-0000-000000000003",
+  "agentId": "550e8400-e29b-41d4-a716-446655440000",
+  "label": "Next step agreed",
+  "description": "Customer agreed to a concrete follow-up action such as a demo, callback, or signup",
+  "position": 2,
+  "createdAt": "2025-01-15T11:00:00.000Z",
+  "updatedAt": "2025-01-15T11:00:00.000Z"
+}
+```
+
+---
+
+### Update a resolution criterion's label and/or description
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Criterion updated |
+| `404` | Criterion not found |
+
+```bash
+curl -X PATCH https://api.gomobile.ma/api/agents/550e8400-e29b-41d4-a716-446655440000/resolution-criteria/a1b2c3d4-0000-0000-0000-000000000001 \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "description": "Customer explicitly states their current plan, monthly budget, and main frustrations"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "a1b2c3d4-0000-0000-0000-000000000001",
+  "agentId": "550e8400-e29b-41d4-a716-446655440000",
+  "label": "Needs assessment completed",
+  "description": "Customer explicitly states their current plan, monthly budget, and main frustrations",
+  "position": 0,
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T12:00:00.000Z"
+}
+```
+
+---
+
+### Soft-delete a resolution criterion
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Criterion soft-deleted |
+| `404` | Criterion not found |
+
+---
+
+### Get resolution metrics for an agent
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Metrics returned |
+| `404` | Agent not found |
+
+```bash
+curl -X GET https://api.gomobile.ma/api/agents/550e8400-e29b-41d4-a716-446655440000/resolution-metrics \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "totalConversations": 150,
+  "evaluatedConversations": 120,
+  "resolvedConversations": 96,
+  "unresolvedConversations": 24,
+  "resolutionRate": 0.8,
+  "criteriaBreakdown": [
+    {
+      "criterionId": "a1b2c3d4-0000-0000-0000-000000000001",
+      "label": "Needs assessment completed",
+      "metCount": 108,
+      "notMetCount": 12,
+      "metRate": 0.9
+    },
+    {
+      "criterionId": "a1b2c3d4-0000-0000-0000-000000000002",
+      "label": "Product recommendation made",
+      "metCount": 100,
+      "notMetCount": 20,
+      "metRate": 0.833
+    },
+    {
+      "criterionId": "a1b2c3d4-0000-0000-0000-000000000003",
+      "label": "Next step agreed",
+      "metCount": 96,
+      "notMetCount": 24,
+      "metRate": 0.8
+    }
+  ]
+}
+```
+
+---
+
+## How Resolution Evaluation Works
+
+### 1
+
+When a call connects to an agent, the criteria are loaded from the database and frozen into the conversation handle. Changes to criteria mid-conversation have no effect.
+
+### 2
+
+If the agent has criteria, the `end_conversation` tool is dynamically extended with a `resolution` field. The criteria descriptions are injected into the tool schema so the LLM knows exactly what to evaluate.
+
+```
+Static tool (no criteria):    { reason, farewell_message, summary }
+Dynamic tool (with criteria): { reason, farewell_message, summary, resolution }
+```
+
+See [end-call-tool.md](/features/agent-studio/end-call-tool) for the full tool schema.
+
+### 3
+
+When the LLM calls `end_conversation`, it must evaluate **every** criterion with a boolean judgment and brief evidence. The schema enforces `resolution.length === criteria.length`.
+
+### 4
+
+- Each criterion evaluation is stored as a row in `conversation_resolutions`
+- The denormalized `resolved` boolean is set on `agent_conversations`:
+  - `true` — all criteria met
+  - `false` — any criterion not met
+  - `null` — not evaluated (non-tool exit: hangup, timeout, max_turns, error)
+
+### 5
+
+`GET /agents/:id/resolution-metrics` uses `COUNT(*) FILTER (WHERE ...)` for efficient single-pass aggregation. No materialized views or caching — computed on each request.
+
+---
+
+## Frontend Integration Notes
+
+### Resolution Criteria Management
+
+1. **Agent settings page** — Add a "Resolution Criteria" section where users can add/edit/remove criteria (max 5). Use the inline `resolutionCriteria` field on agent update for atomic saves.
+
+2. **Criteria form** — Each criterion needs:
+   - `label` input (required, max 255 chars) — short name shown in metrics
+   - `description` textarea (required) — detailed description the LLM uses for evaluation
+
+3. **Max limit UX** — Disable "Add criterion" button when 5 criteria exist. Show remaining count.
+
+### Resolution Metrics Dashboard
+
+Display for each agent:
+
+```
+Resolution Rate: 80% (96 / 120 evaluated)
+Total Conversations: 150 | Evaluated: 120 | Not Evaluated: 30
+
+Criteria Breakdown:
+```
+
+**Key metrics to surface:**
+- **Resolution rate** — `resolvedConversations / evaluatedConversations` — higher is better
+- **Evaluation rate** — `evaluatedConversations / totalConversations` — low values indicate many non-tool exits (hangups, timeouts)
+- **Per-criterion met rate** — identifies which criteria agents struggle with most

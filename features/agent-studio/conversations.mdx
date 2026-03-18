@@ -1,0 +1,425 @@
+---
+title: "Conversations"
+description: "View and manage AI agent conversation history and transcripts"
+---
+
+<Info>
+**Base path: `/agents/:agentId/conversations`**
+</Info>
+
+Multi-turn conversations with agents. Supports both synchronous request/response and Server-Sent Events (SSE) streaming.
+
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// ENUMS
+// ============================================
+
+type ConversationStatus = 'pending' | 'active' | 'ended' | 'failed' | 'archived';
+
+/**
+ * Why the conversation ended.
+ *
+ * - 'completed': Normal completion via [COMPLETE] phrase match
+ * - 'function_call_exit': Agent called the end_conversation tool (function_call exit mode)
+ * - 'exit_phrase': User said an exit phrase during a connect-agent voice call
+ * - 'max_turns': Maximum turn count reached during a connect-agent voice call
+ * - 'timeout': Conversation timeout exceeded during a connect-agent voice call
+ * - 'user_hangup': Caller hung up during a connect-agent voice call
+ * - 'error': An error occurred
+ */
+type ConversationExitReason =
+  | 'completed'
+  | 'function_call_exit'
+  | 'exit_phrase'
+  | 'max_turns'
+  | 'timeout'
+  | 'user_hangup'
+  | 'error';
+
+type SortOrder = 'asc' | 'desc';
+
+// ============================================
+// MESSAGE TYPES
+// ============================================
+
+interface ConversationMessage {
+  /** Message UUID */
+  id: string;
+  /** Who sent the message */
+  role: 'user' | 'assistant';
+  /** Message text content */
+  content: string;
+  /** ISO 8601 timestamp */
+  createdAt: string;
+}
+
+// ============================================
+// REQUEST TYPES
+// ============================================
+
+interface StartConversationRequest {
+  /** User UUID (for API/web conversations) */
+  userId?: string;
+  /** Contact UUID (for contact-linked conversations) */
+  contactId?: string;
+  /** Conversation title */
+  title?: string;
+}
+
+interface SendMessageRequest {
+  /** Message text content */
+  message: string;
+}
+
+// ============================================
+// QUERY PARAMETERS
+// ============================================
+
+interface ConversationQueryParams {
+  /** Page number (default: 1) */
+  page?: number;
+  /** Items per page (default: 20, max: 100) */
+  limit?: number;
+  /** Sort field */
+  sortBy?: 'createdAt' | 'updatedAt' | 'startedAt' | 'lastMessageAt' | 'messageCount';
+  /** Sort order (default: 'desc') */
+  sortOrder?: SortOrder;
+  /** Search by title (partial match, max 100 chars) */
+  search?: string;
+  /** Filter by status */
+  status?: ConversationStatus;
+}
+
+// ============================================
+// RESPONSE TYPES
+// ============================================
+
+interface ConversationResponse {
+  /** Conversation UUID */
+  id: string;
+  /** Organization UUID */
+  organizationId: string;
+  /** Agent UUID */
+  agentId: string;
+  /** Mastra thread UUID (internal) */
+  mastraThreadId: string;
+  /** Mastra resource ID (internal) */
+  mastraResourceId: string;
+  /** User UUID (set for API/web conversations) */
+  userId: string | null;
+  /** Contact UUID (set for contact-linked conversations) */
+  contactId: string | null;
+  /** Call UUID (set for connect-agent voice calls) */
+  callId: string | null;
+  /** Flow node ID (set for connect-agent voice calls) */
+  nodeId: string | null;
+  /** Conversation title */
+  title: string | null;
+  /** Total messages exchanged */
+  messageCount: number;
+  /** Cumulative input tokens */
+  totalInputTokens: number;
+  /** Cumulative output tokens */
+  totalOutputTokens: number;
+  /** Current conversation status */
+  status: ConversationStatus;
+  /** Why the conversation ended (null if still active) */
+  exitReason: ConversationExitReason | null;
+  /**
+   * Exit phrase details:
+   * - phrase_match mode: the matched exit phrase
+   * - function_call mode: the user's last transcript that triggered exit
+   */
+  exitPhrase: string | null;
+  /**
+   * LLM-generated conversation summary.
+   * Only populated when exitReason is 'function_call_exit'
+   * (from end_conversation tool's `summary` arg).
+   */
+  summary: string | null;
+  /** Variables extracted during the conversation (from flow extractVariables config) */
+  extractedVariables: Record<string, unknown>;
+  /** ISO 8601 timestamp: when conversation started */
+  startedAt: string;
+  /** ISO 8601 timestamp: when the last message was sent (null if no messages yet) */
+  lastMessageAt: string | null;
+  /** ISO 8601 timestamp: when conversation ended (null if still active) */
+  endedAt: string | null;
+  /** ISO 8601 timestamp */
+  createdAt: string;
+  /** ISO 8601 timestamp */
+  updatedAt: string;
+}
+
+interface SendMessageResponse {
+  /** Agent's text response */
+  response: string;
+  /** Token usage for this turn */
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+}
+
+interface ConversationListResponse {
+  data: ConversationResponse[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+/**
+ * GET /conversations/:id/messages returns a flat array of ConversationMessage[].
+ * No pagination wrapper is used — all messages are returned.
+ */
+
+// ============================================
+// SSE STREAM EVENT TYPES
+// ============================================
+
+/**
+ * Server-Sent Events for streaming message responses.
+ * Each event is a JSON object with a `type` field.
+ *
+ * Note: The implementation uses a single interface with optional fields
+ * rather than a discriminated union. The `usage` fields are optional.
+ */
+type StreamEvent =
+  | { type: 'text'; text: string }
+  | { type: 'usage'; usage: { inputTokens?: number; outputTokens?: number } }
+  | { type: 'done' }
+  | { type: 'error'; error: string };
+
+// ============================================
+// CONVERSATION TURN (Connect-Agent Analytics)
+// ============================================
+
+/**
+ * Per-turn metrics for connect-agent voice conversations.
+ * Available in analytics and conversation detail views.
+ * Not directly exposed via REST API but included in
+ * conversation persistence data.
+ */
+interface ConversationTurn {
+  /** Turn UUID */
+  id: string;
+  /** Parent conversation UUID */
+  conversationId: string;
+  /** 0-indexed turn number */
+  turnIndex: number;
+  /** User's speech-to-text transcript */
+  userTranscript: string | null;
+  /** Duration of user's speech in milliseconds */
+  userAudioDurationMs: number | null;
+  /** Agent's text response */
+  agentResponse: string | null;
+  /** Duration of agent's synthesized speech in milliseconds */
+  agentAudioDurationMs: number | null;
+  /** Speech-to-text API latency in milliseconds */
+  sttLatencyMs: number | null;
+  /** LLM API latency in milliseconds */
+  llmLatencyMs: number | null;
+  /** Text-to-speech API latency in milliseconds */
+  ttsLatencyMs: number | null;
+  // Note: ragLatencyMs is tracked in TurnResult internally but not persisted to the DB turn record
+  /** Input tokens for this turn */
+  inputTokens: number | null;
+  /** Output tokens for this turn */
+  outputTokens: number | null;
+  /** ISO 8601 timestamp: when this turn started */
+  startedAt: string;
+  /** ISO 8601 timestamp: when this turn completed */
+  completedAt: string | null;
+}
+```
+
+</Accordion>
+
+---
+
+### Start a new conversation with an agent
+
+**Requirements:**
+
+- Agent must exist and have status `active`
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `201` | Conversation started |
+| `404` | Agent not found |
+| `409` | Agent is not active |
+
+```bash
+curl -X POST https://api.gomobile.ma/api/agents/550e8400-e29b-41d4-a716-446655440000/conversations \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "title": "Customer inquiry",
+  "userId": "user-uuid-123"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "770e8400-e29b-41d4-a716-446655440002",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "agentId": "550e8400-e29b-41d4-a716-446655440000",
+  "mastraThreadId": "880e8400-e29b-41d4-a716-446655440003",
+  "mastraResourceId": "org-660e8400",
+  "userId": "user-uuid-123",
+  "contactId": null,
+  "callId": null,
+  "nodeId": null,
+  "title": "Customer inquiry",
+  "messageCount": 0,
+  "totalInputTokens": 0,
+  "totalOutputTokens": 0,
+  "status": "active",
+  "exitReason": null,
+  "exitPhrase": null,
+  "summary": null,
+  "extractedVariables": {},
+  "startedAt": "2025-01-15T10:30:00.000Z",
+  "lastMessageAt": null,
+  "endedAt": null,
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+### List conversations for an agent
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Paginated list of conversations |
+| `404` | Agent not found |
+
+---
+
+### Get a single conversation by ID
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Conversation found |
+| `404` | Conversation not found |
+
+---
+
+### Send a message in a conversation and receive the agent's ...
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Message sent, response returned |
+| `404` | Conversation not found |
+| `409` | Conversation is not active |
+
+```bash
+curl -X POST https://api.gomobile.ma/api/conversations/770e8400/messages \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "message": "I need help with my order"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "response": "I'd be happy to help you with your order! Could you please provide your order number?",
+  "usage": {
+    "inputTokens": 245,
+    "outputTokens": 28
+  }
+}
+```
+
+---
+
+### Get all messages in a conversation
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Messages retrieved |
+| `404` | Conversation not found |
+
+---
+
+### Stream a message response using Server-Sent Events
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Stream started |
+| `404` | Conversation not found |
+| `409` | Conversation is not active |
+
+**Event Types:**
+
+```
+// Request
+POST /conversations/770e8400/messages/stream
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "message": "What is your return policy?" }
+
+// Response (SSE stream)
+data: {"type":"text","text":"Our "}
+data: {"type":"text","text":"return "}
+data: {"type":"text","text":"policy "}
+data: {"type":"text","text":"allows "}
+data: {"type":"text","text":"returns within 30 days."}
+data: {"type":"usage","usage":{"inputTokens":245,"outputTokens":12}}
+data: [DONE]
+```
+
+**Frontend Integration Notes:**
+
+- Use the `EventSource` API or a library like `eventsource-parser` for SSE parsing
+- Each `data:` line contains a JSON object **except** the final terminator which is the raw string `[DONE]`
+- The stream ends when you receive `data: [DONE]`
+- If you receive an `error` event, display the error message and close the connection
+- Token usage is sent as a separate event after all text chunks
+
+---
+
+### End an active conversation programmatically
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Conversation ended |
+| `404` | Conversation not found |
+| `409` | Conversation is not active |

@@ -1,0 +1,655 @@
+---
+title: "Knowledge Base"
+description: "RAG-powered knowledge bases for AI agent context"
+---
+
+<Info>
+**Base path: `/api/knowledge-bases`**
+</Info>
+
+Knowledge bases store documents that agents use for RAG (Retrieval-Augmented Generation). When an agent has a knowledge base attached, relevant document chunks are automatically retrieved and injected into each LLM call - both in the playground and during voice calls.
+
+**Related:** [Agents API](/features/agent-studio/agents) (linking KB to agent) | [Voice Agents](/features/agent-studio/voice-agents) (RAG in voice pipeline)
+
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// ENUMS & CONSTANTS
+// ============================================
+
+/** Knowledge base lifecycle status */
+type KnowledgeBaseStatus = 'active' | 'archived';
+
+/**
+ * Document processing status.
+ * Transitions: uploading -> processing -> ready | failed
+ */
+type DocumentStatus = 'uploading' | 'processing' | 'ready' | 'failed';
+
+/**
+ * Granular processing step within 'processing' status.
+ * Shows exactly where the document is in the ingestion pipeline.
+ * Transitions: null -> parsing -> chunking -> embedding -> upserting -> null (ready)
+ * On failure: step is preserved to show where the pipeline broke.
+ */
+type ProcessingStep = 'parsing' | 'chunking' | 'embedding' | 'upserting' | null;
+
+/** Supported file types for document upload */
+type SupportedFileType = 'txt' | 'md' | 'pdf';
+
+/** Chunking strategy for document splitting */
+type ChunkStrategy = 'recursive' | 'sliding_window';
+
+type SortOrder = 'asc' | 'desc';
+
+// ============================================
+// KNOWLEDGE BASE CONFIGURATION
+// ============================================
+
+/**
+ * Chunk configuration for document splitting.
+ * Set when creating a knowledge base. All documents in the KB
+ * use the same chunk config.
+ *
+ * All fields are optional in the request (defaults are applied server-side).
+ * In responses, all fields will always be present.
+ */
+interface ChunkConfig {
+  /** Splitting strategy. Default: 'recursive' */
+  strategy?: ChunkStrategy;
+  /** Chunk size in characters. Default: 512 */
+  size?: number;
+  /** Overlap between chunks in characters. Default: 50 */
+  overlap?: number;
+}
+
+// ============================================
+// REQUEST TYPES
+// ============================================
+
+interface CreateKnowledgeBaseRequest {
+  /** Knowledge base name (1-128 chars) */
+  name: string;
+  /** Knowledge base description */
+  description?: string;
+  /**
+   * Embedding model in "provider/model-name" format.
+   * Default: 'openai/text-embedding-3-small'
+   * Vector dimension: 1536
+   */
+  embeddingModel?: string;
+  /** Chunk configuration. Defaults: strategy='recursive', size=512, overlap=50 */
+  chunkConfig?: ChunkConfig;
+}
+
+interface UpdateKnowledgeBaseRequest {
+  name?: string;
+  description?: string;
+  /** Update KB status (e.g., to 'archived') */
+  status?: KnowledgeBaseStatus;
+}
+
+// ============================================
+// QUERY PARAMETERS
+// ============================================
+
+interface KnowledgeBaseQueryParams {
+  /** Page number (default: 1) */
+  page?: number;
+  /** Items per page (default: 20, max: 100) */
+  limit?: number;
+  /** Search by name or description (case-insensitive, max 100 chars) */
+  search?: string;
+  /** Sort field */
+  sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'status' | 'documentCount';
+  /** Sort order (default: 'desc') */
+  sortOrder?: SortOrder;
+  /** Filter by status */
+  status?: KnowledgeBaseStatus;
+}
+
+interface DocumentQueryParams {
+  /** Page number (default: 1) */
+  page?: number;
+  /** Items per page (default: 20, max: 100) */
+  limit?: number;
+  /** Search by file name (partial match, max 100 chars) */
+  search?: string;
+  /** Sort field */
+  sortBy?: 'fileName' | 'createdAt' | 'updatedAt' | 'status' | 'chunkCount';
+  /** Sort order (default: 'desc') */
+  sortOrder?: SortOrder;
+  /** Filter by document group */
+  documentGroup?: string;
+  /** Filter by processing status */
+  status?: DocumentStatus;
+}
+
+// ============================================
+// RESPONSE TYPES
+// ============================================
+
+interface KnowledgeBaseResponse {
+  /** Knowledge base UUID */
+  id: string;
+  /** Organization UUID */
+  organizationId: string;
+  /** Display name */
+  name: string;
+  /** Description */
+  description: string | null;
+  /** Current status */
+  status: KnowledgeBaseStatus;
+  /**
+   * Embedding model used for this KB.
+   * Cannot be changed after creation (would require re-embedding all documents).
+   */
+  embeddingModel: string;
+  /** Chunk configuration used for all documents in this KB (always set for new KBs) */
+  chunkConfig: ChunkConfig | null;
+  /** Number of documents (excluding deleted) */
+  documentCount: number;
+  /** ISO 8601 timestamp */
+  createdAt: string;
+  /** ISO 8601 timestamp */
+  updatedAt: string;
+  /** UUID of the user who created the KB */
+  createdBy: string | null;
+}
+
+interface KnowledgeBaseListResponse {
+  data: KnowledgeBaseResponse[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+interface DocumentResponse {
+  /** Document UUID */
+  id: string;
+  /** Parent knowledge base UUID */
+  knowledgeBaseId: string;
+  /** Original file name (e.g., "product-guide.pdf") */
+  fileName: string;
+  /** File type */
+  fileType: SupportedFileType;
+  /** File size in bytes (null if not available) */
+  fileSize: number | null;
+  /**
+   * Document group tag for filtering.
+   * Agents can be configured to only query specific groups.
+   * Default: 'default'
+   */
+  documentGroup: string;
+  /** Current processing status */
+  status: DocumentStatus;
+  /**
+   * Current processing step within 'processing' status.
+   * null when status is 'uploading', 'ready', or 'failed' (preserved on failure).
+   *
+   * Use this to show a progress indicator:
+   * parsing -> chunking -> embedding -> upserting
+   */
+  processingStep: ProcessingStep;
+  /** Number of chunks created (0 until processing completes) */
+  chunkCount: number;
+  /** Error message (only set when status is 'failed') */
+  errorMessage: string | null;
+  /** ISO 8601 timestamp */
+  createdAt: string;
+  /** ISO 8601 timestamp */
+  updatedAt: string;
+}
+
+interface DocumentListResponse {
+  data: DocumentResponse[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+// ============================================
+// AGENT KNOWLEDGE BASE CONFIGURATION
+// ============================================
+
+/**
+ * Configuration linking an agent to a knowledge base.
+ * Set via PATCH /agents/:id { knowledgeBaseConfig: { ... } }
+ * See agents.md for the full agent update API.
+ */
+interface AgentKnowledgeBaseConfig {
+  /** UUID of the knowledge base to query */
+  knowledgeBaseId: string;
+
+  /**
+   * Document groups to include in retrieval.
+   * null/undefined = all groups in the KB.
+   * Example: ['product-docs', 'faqs']
+   */
+  documentGroups?: string[];
+
+  /**
+   * Number of document chunks to retrieve per query.
+   * Default: 5
+   */
+  topK?: number;
+
+  /**
+   * Minimum cosine similarity score (0-1).
+   * Chunks below this threshold are excluded.
+   * Default: 0.7
+   */
+  similarityThreshold?: number;
+}
+```
+
+</Accordion>
+
+---
+
+## Knowledge Base Endpoints
+
+### Create a new knowledge base
+
+**Defaults Applied:**
+
+**What happens on creation:**
+1. Knowledge base record is created in the database
+2. A Qdrant vector collection is created: `kb_{knowledgeBaseId}`
+   - Vector dimension: 1536 (matching OpenAI text-embedding-3-small)
+   - Distance metric: Cosine
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `201` | Knowledge base created |
+| `400` | Invalid input |
+
+```bash
+curl -X POST https://api.gomobile.ma/api/api/knowledge-bases \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "name": "Product Support KB",
+  "description": "Product documentation and FAQs",
+  "embeddingModel": "openai/text-embedding-3-small",
+  "chunkConfig": {
+    "strategy": "recursive",
+    "size": 512,
+    "overlap": 50
+  }
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "880e8400-e29b-41d4-a716-446655440003",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "Product Support KB",
+  "description": "Product documentation and FAQs",
+  "status": "active",
+  "embeddingModel": "openai/text-embedding-3-small",
+  "chunkConfig": {
+    "strategy": "recursive",
+    "size": 512,
+    "overlap": 50
+  },
+  "documentCount": 0,
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z",
+  "createdBy": "770e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+---
+
+### List knowledge bases
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Paginated list |
+
+---
+
+### Get a single knowledge base by ID
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Knowledge base found |
+| `404` | Not found or deleted |
+
+---
+
+### Update a knowledge base
+
+**Note:** `embeddingModel` and `chunkConfig` cannot be changed after creation because changing them would require re-embedding all existing documents.
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Updated |
+| `400` | Invalid input |
+| `404` | Not found |
+
+---
+
+### Delete a knowledge base and all its documents, vectors, a...
+
+**Cleanup order:**
+1. Delete Qdrant collection (`kb_{id}`) - removes all vectors
+2. Delete all S3 files via FileService
+3. Soft-delete all `knowledge_base_documents` records
+4. Soft-delete `knowledge_bases` record
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Deleted |
+| `404` | Not found |
+
+---
+
+## Document Endpoints
+
+### Upload a document for processing
+
+**Constraints:**
+
+**Processing Pipeline (async, after 202 response):**
+
+```
+Upload (sync)              Processing (async BullMQ worker)
++-----------+     +--------+     +---------+     +-----------+     +----------+     +-------+
+| S3 Upload | --> | parsing| --> |chunking | --> | embedding | --> | upserting| --> | ready |
++-----------+     +--------+     +---------+     +-----------+     +----------+     +-------+
+                       |              |               |                |
+                       v              v               v                v
+                   (on failure, status='failed', processingStep preserved)
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `202` | Document accepted for processing. Poll `GET .../documents/:docId` for status. |
+| `400` | Invalid file type, file too large, or KB document limit reached |
+| `404` | Knowledge base not found |
+| `409` | Knowledge base is not active (e.g., archived) |
+
+```bash
+# Upload a document
+curl -X POST /api/knowledge-bases/880e8400/documents \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@product-guide.pdf" \
+  -F "documentGroup=product-docs"
+```
+
+```json
+// Response 202
+{
+  "id": "990e8400-e29b-41d4-a716-446655440004",
+  "knowledgeBaseId": "880e8400-e29b-41d4-a716-446655440003",
+  "fileName": "product-guide.pdf",
+  "fileType": "pdf",
+  "fileSize": null,
+  "documentGroup": "product-docs",
+  "status": "uploading",
+  "processingStep": null,
+  "chunkCount": 0,
+  "errorMessage": null,
+  "createdAt": "2025-01-15T10:31:00.000Z",
+  "updatedAt": "2025-01-15T10:31:00.000Z"
+}
+```
+
+---
+
+### List documents in a knowledge base
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Paginated list |
+| `404` | Knowledge base not found |
+
+---
+
+### Get a single document's status and details
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Document found |
+| `404` | Document not found |
+
+Processing in progress:
+
+```json
+{
+  "id": "990e8400-e29b-41d4-a716-446655440004",
+  "status": "processing",
+  "processingStep": "embedding",
+  "chunkCount": 0,
+  "errorMessage": null
+}
+```
+
+Processing complete:
+
+```json
+{
+  "id": "990e8400-e29b-41d4-a716-446655440004",
+  "status": "ready",
+  "processingStep": null,
+  "chunkCount": 45,
+  "errorMessage": null
+}
+```
+
+Processing failed:
+
+```json
+{
+  "id": "990e8400-e29b-41d4-a716-446655440004",
+  "status": "failed",
+  "processingStep": "embedding",
+  "chunkCount": 0,
+  "errorMessage": "OpenAI Embeddings API rate limit exceeded"
+}
+```
+
+---
+
+### Delete a document, its S3 file, and all its vectors
+
+**Cleanup order:**
+1. Delete vectors from Qdrant (filtered by `documentId`)
+2. Delete S3 file via FileService
+3. Soft-delete `knowledge_base_documents` record
+4. Decrement `documentCount` on the knowledge base (only if document status was `'ready'`)
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Deleted |
+| `404` | Document not found |
+
+---
+
+## Linking a Knowledge Base to an Agent
+
+To enable RAG for an agent, update the agent with a `knowledgeBaseConfig`:
+
+```http
+PATCH /agents/:agentId
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "knowledgeBaseConfig": {
+    "knowledgeBaseId": "880e8400-e29b-41d4-a716-446655440003",
+    "documentGroups": ["product-docs", "faqs"],
+    "topK": 5,
+    "similarityThreshold": 0.7
+  }
+}
+```
+
+To remove the KB link:
+
+```http
+PATCH /agents/:agentId
+{
+  "knowledgeBaseConfig": null
+}
+```
+
+See [agents.md](/features/agent-studio/agents) for the full agent update API.
+
+---
+
+## RAG Retrieval Behavior
+
+When an agent has a `knowledgeBaseConfig`, retrieval happens automatically:
+
+### In Playground (`POST /agents/:id/test`)
+
+1. User sends a message
+2. The message is embedded using the KB's embedding model
+3. Top-K similar chunks are retrieved from Qdrant (filtered by `documentGroups` if set)
+4. Chunks below `similarityThreshold` are discarded
+5. Remaining chunks are formatted and prepended to the user message
+6. The enriched message is sent to the LLM
+
+### In Voice Calls (CONNECT_AGENT node)
+
+Same flow as playground, but runs on every conversation turn:
+
+1. User speaks, speech is transcribed (STT)
+2. A context-aware search query is built (includes previous turn for pronoun resolution)
+3. Top-K chunks are retrieved from Qdrant
+4. Chunks are formatted and prepended to the transcript
+5. The enriched transcript is sent to the LLM
+6. LLM response is synthesized to speech (TTS)
+
+### Context Injection Format
+
+The LLM sees the user message in this format:
+
+```
+[Reference Documents]
+[1] (source: product-guide.pdf)
+Acme Widget Pro costs $49.99/month and includes unlimited API calls...
+
+[2] (source: faq.md)
+Our return policy allows returns within 30 days of purchase...
+
+[Caller's Message]
+What is the return policy?
+```
+
+The agent's system prompt includes static instructions on how to use the retrieved context:
+
+```xml
+<knowledge_base>
+KNOWLEDGE BASE INSTRUCTIONS:
+The following excerpts are retrieved from verified organizational documents.
+Use them to answer the caller's questions accurately.
+If the answer is not found in these excerpts, say so honestly rather than guessing.
+
+Do NOT mention "documents", "excerpts", "knowledge base", or "reference materials"
+to the caller. Present the information naturally as if it is part of your knowledge.
+</knowledge_base>
+```
+
+### Graceful Degradation
+
+RAG failures never break the agent. If retrieval fails (Qdrant down, embedding API error, network timeout), the agent responds without KB context - it may hallucinate, but the conversation continues.
+
+---
+
+## RAG Latency Budget
+
+This adds ~5-8% to total voice turn latency (~1.3-2.5s).
+
+---
+
+## Defaults & Limits Reference
+
+---
+
+## Document Status State Machine
+
+```
+                         +----> ready
+                         |     (processingStep: null, chunkCount: N)
+                         |
+uploading --> processing -+
+                         |
+                         +----> failed
+                               (processingStep: preserved, errorMessage: set)
+```
+
+**Processing Steps (within `processing` status):**
+
+```
+parsing --> chunking --> embedding --> upserting --> (done: status='ready')
+```
+
+Each step updates the `processingStep` field. On failure, the step is preserved to show where the pipeline broke. The S3 file is always preserved on failure to allow manual retry.
+
+---
+
+## Frontend Integration Notes
+
+### Document Upload Flow
+
+1. Show file picker (accept `.txt`, `.md`, `.pdf`, max 10MB)
+2. POST multipart/form-data to `POST .../documents`
+3. Receive `202 Accepted` with document object (`status: 'uploading'`)
+4. **Poll** `GET .../documents/:docId` every 2-3 seconds
+5. Show progress based on `processingStep`: parsing -> chunking -> embedding -> upserting
+6. When `status` becomes `'ready'`, show success with `chunkCount`
+7. When `status` becomes `'failed'`, show `errorMessage`
+
+### Document Groups
+
+Document groups allow agents to query only relevant subsets of a KB:
+
+- Set `documentGroup` during upload (default: `'default'`)
+- Configure `documentGroups` array in agent's `knowledgeBaseConfig`
+- If `documentGroups` is `null`/`undefined`, all documents in the KB are searched
+- Example: A KB has groups `['product-docs', 'faqs', 'internal-notes']`. An agent configured with `documentGroups: ['product-docs', 'faqs']` will only search those two groups.
+
+### Processing Step Progress UI
+
+Map processing steps to a progress bar:

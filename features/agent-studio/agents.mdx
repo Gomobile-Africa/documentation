@@ -1,0 +1,661 @@
+---
+title: "Agents"
+description: "Create and manage AI agents for voice conversations"
+---
+
+<Info>
+**Base path: `/agents`**
+</Info>
+
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// ENUMS
+// ============================================
+
+/** Agent lifecycle status */
+type AgentStatus = 'draft' | 'active' | 'archived';
+
+/** Voice pipeline mode for call flow usage */
+type PipelineMode = 'batch' | 'streaming' | 'sts';
+
+/** Speech-to-speech provider (future, not yet implemented) */
+type StsProvider = 'openai' | 'gemini';
+
+type SortOrder = 'asc' | 'desc';
+
+// ============================================
+// MODEL CONFIGURATION
+// ============================================
+
+/**
+ * LLM model configuration for agents.
+ *
+ * Model format: "provider/model-name"
+ * Supported providers: openai, anthropic
+ *
+ * @example "openai/gpt-4o-mini"
+ * @example "anthropic/claude-sonnet-4-20250514"
+ */
+interface AgentModelConfig {
+  /** Model identifier in "provider/model-name" format */
+  model: string;
+
+  /** Model generation settings */
+  modelSettings?: {
+    /** Temperature (0-2). Default: 0.7 */
+    temperature?: number;
+    /** Maximum tokens to generate */
+    maxTokens?: number;
+    /** Top P nucleus sampling (0-1) */
+    topP?: number;
+    /** Top K sampling */
+    topK?: number;
+    /** Stop sequences */
+    stopSequences?: string[];
+  };
+
+  /** Provider-specific options */
+  providerOptions?: {
+    openai?: {
+      reasoningEffort?: 'low' | 'medium' | 'high';
+      responseFormat?: 'text' | 'json_object';
+      frequencyPenalty?: number;
+      presencePenalty?: number;
+    };
+    anthropic?: {
+      cacheControl?: { type: 'ephemeral' };
+      maxTokens?: number;
+    };
+  };
+}
+
+// ============================================
+// VOICE CONFIGURATION
+// ============================================
+
+/**
+ * Voice configuration for agents used in call flows.
+ * Applied when the agent is connected via a CONNECT_AGENT node.
+ *
+ * Discriminated union on `pipelineMode`:
+ * - 'batch': STT -> LLM -> TTS sequential pipeline
+ * - 'streaming': Streaming LLM + sentence-chunked TTS for lower latency
+ * - 'sts' (future): Speech-to-speech via OpenAI Realtime or Gemini Live
+ */
+type AgentVoiceConfig =
+  | BatchStreamingVoiceConfig
+  | StsVoiceConfig;
+
+interface BatchStreamingVoiceConfig {
+  /** Pipeline mode: 'batch' or 'streaming' */
+  pipelineMode: 'batch' | 'streaming';
+  /** ElevenLabs voice ID. Uses platform default if omitted */
+  voiceId?: string;
+}
+
+interface StsVoiceConfig {
+  /** Pipeline mode: speech-to-speech (future - not yet implemented) */
+  pipelineMode: 'sts';
+  /** STS provider */
+  stsProvider: StsProvider;
+}
+
+// ============================================
+// MEMORY CONFIGURATION
+// ============================================
+
+/**
+ * Memory configuration for conversation context.
+ * Uses Mastra Memory with PostgresStore backend.
+ */
+interface AgentMemoryConfig {
+  /** Enable conversation memory. Default: true */
+  enabled: boolean;
+  /** Number of recent messages to include (1-100). Default: 20 */
+  lastMessages?: number;
+  /** Enable semantic recall (future feature). Default: false */
+  semanticRecall?: boolean;
+}
+
+// ============================================
+// KNOWLEDGE BASE CONFIGURATION
+// ============================================
+
+/**
+ * Links an agent to a knowledge base for RAG-powered responses.
+ * When set, the agent retrieves relevant document chunks before
+ * each response (both in playground and voice calls).
+ *
+ * See knowledge-base.md for full KB API documentation.
+ */
+interface AgentKnowledgeBaseConfig {
+  /** UUID of the knowledge base to query */
+  knowledgeBaseId: string;
+  /** Document groups to include. null/undefined = all groups */
+  documentGroups?: string[];
+  /** Number of chunks to retrieve per query (1-20). Default: 5 */
+  topK?: number;
+  /** Minimum similarity score (0-1). Default: 0.7 */
+  similarityThreshold?: number;
+}
+
+// ============================================
+// AGENT METADATA (OPTIONAL FIELDS)
+// ============================================
+
+/**
+ * The `metadata` field is a freeform JSON object. The following keys
+ * are recognized by the master prompt system when the agent is used
+ * in voice call flows:
+ *
+ * - scope (string): Agent's operational scope.
+ *     Default: "general customer assistance"
+ *     Example: "technical support for billing issues"
+ *
+ * - toneStyle (string): Tone and communication style.
+ *     Default: "professional, warm, and helpful"
+ *     Example: "casual, friendly, and upbeat"
+ *
+ * All other keys are stored as-is and available in the API response.
+ */
+type AgentMetadata = Record<string, unknown>;
+
+// ============================================
+// REQUEST TYPES
+// ============================================
+
+interface CreateAgentRequest {
+  /** Agent display name (1-128 chars) */
+  name: string;
+  /** Agent description (max 2000 chars) */
+  description?: string;
+  /** Agent instructions / system prompt (1-10000 chars) */
+  instructions: string;
+  /** Agent policy — business rules auto-injected into the prompt, hidden from callers (max 10000 chars) */
+  policy?: string;
+  /** LLM model configuration. Defaults to openai/gpt-4o-mini */
+  modelConfig?: AgentModelConfig;
+  /** Voice pipeline configuration for call flows */
+  voiceConfig?: AgentVoiceConfig;
+  /** Conversation memory settings */
+  memoryConfig?: AgentMemoryConfig;
+  /** Knowledge base RAG configuration */
+  knowledgeBaseConfig?: AgentKnowledgeBaseConfig;
+  /** Freeform metadata (see AgentMetadata) */
+  metadata?: AgentMetadata;
+  /**
+   * Resolution criteria for evaluating conversation outcomes (max 5).
+   * See resolution-criteria.md for full documentation.
+   */
+  resolutionCriteria?: Array<{ label: string; description: string }>;
+}
+
+interface UpdateAgentRequest {
+  /**
+   * All fields are optional - only provided fields are updated.
+   * The `metadata` field uses shallow merge: provided keys are added/updated,
+   * existing keys not in the request are preserved.
+   *
+   * Version is incremented when `instructions`, `policy`, `modelConfig`,
+   * `memoryConfig`, or `resolutionCriteria` are changed.
+   */
+  name?: string;
+  description?: string;
+  instructions?: string;
+  /** Agent policy — business rules auto-injected into the prompt (set to null to clear) */
+  policy?: string | null;
+  modelConfig?: AgentModelConfig;
+  voiceConfig?: AgentVoiceConfig;
+  memoryConfig?: AgentMemoryConfig;
+  /** Knowledge base RAG configuration (set to null to detach) */
+  knowledgeBaseConfig?: AgentKnowledgeBaseConfig | null;
+  metadata?: AgentMetadata;
+  /**
+   * Resolution criteria (max 5). Declarative replace: replaces all existing
+   * criteria when provided. Omit to leave unchanged. Set to [] to clear.
+   * See resolution-criteria.md for full documentation.
+   */
+  resolutionCriteria?: Array<{ label: string; description: string }>;
+}
+
+interface TestAgentRequest {
+  /** Message to send to the agent (1-10000 chars) */
+  message: string;
+}
+
+// ============================================
+// QUERY PARAMETERS
+// ============================================
+
+interface AgentQueryParams {
+  /** Page number (default: 1) */
+  page?: number;
+  /** Items per page (default: 20, max: 100) */
+  limit?: number;
+  /** Search by name or description (partial match, max 100 chars) */
+  search?: string;
+  /** Sort field */
+  sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'status';
+  /** Sort order (default: 'desc') */
+  sortOrder?: SortOrder;
+  /** Filter by status */
+  status?: AgentStatus;
+}
+
+// ============================================
+// RESPONSE TYPES
+// ============================================
+
+interface AgentResponse {
+  /** Agent UUID */
+  id: string;
+  /** Organization UUID */
+  organizationId: string;
+  /** Agent display name */
+  name: string;
+  /** Agent description */
+  description: string | null;
+  /** Agent instructions / system prompt */
+  instructions: string;
+  /** Agent policy — business rules (null if not set) */
+  policy: string | null;
+  /** Current lifecycle status */
+  status: AgentStatus;
+  /** Version number. Incremented when instructions, policy, modelConfig, or memoryConfig change */
+  version: number;
+  /** LLM model configuration */
+  modelConfig: AgentModelConfig;
+  /** Voice pipeline configuration (null if not set) */
+  voiceConfig: AgentVoiceConfig | null;
+  /** Memory configuration. Defaults applied on create (never null for new agents) */
+  memoryConfig: AgentMemoryConfig | null;
+  /** Knowledge base RAG configuration (null if not linked) */
+  knowledgeBaseConfig: AgentKnowledgeBaseConfig | null;
+  /** Freeform metadata */
+  metadata: Record<string, unknown>;
+  /** ISO 8601 timestamp */
+  createdAt: string;
+  /** ISO 8601 timestamp */
+  updatedAt: string;
+  /** UUID of the user who created the agent (null if system-created) */
+  createdBy: string | null;
+}
+
+interface TestAgentResponse {
+  /** Agent's text response */
+  response: string;
+  /** Token usage for this generation */
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface AgentListResponse {
+  data: AgentResponse[];
+  meta: PaginationMeta;
+}
+```
+
+</Accordion>
+
+---
+
+### Create a new agent
+
+**Default Model Config** (applied when `modelConfig` is omitted):
+
+```json
+{
+  "model": "openai/gpt-4o-mini",
+  "modelSettings": {
+    "temperature": 0.7
+  }
+}
+```
+
+**Default Memory Config** (applied when `memoryConfig` is omitted):
+
+```json
+{
+  "enabled": true,
+  "lastMessages": 20,
+  "semanticRecall": false
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `201` | Agent created successfully (status: `draft`) |
+| `400` | Invalid input data |
+
+```bash
+curl -X POST https://api.gomobile.ma/api/agents \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "name": "Customer Support Agent",
+  "description": "AI agent for handling customer inquiries",
+  "instructions": "You are a helpful customer support agent for Acme Corp. Be friendly, professional, and concise.",
+  "policy": "Refunds are only allowed within 30 days of purchase. Escalate complaints about billing errors to a human agent.",
+  "modelConfig": {
+    "model": "openai/gpt-4o-mini",
+    "modelSettings": {
+      "temperature": 0.7,
+      "maxTokens": 1024
+    }
+  },
+  "voiceConfig": {
+    "pipelineMode": "batch",
+    "voiceId": "EXAVITQu4vr4xnSDxMaL"
+  },
+  "memoryConfig": {
+    "enabled": true,
+    "lastMessages": 20
+  },
+  "knowledgeBaseConfig": {
+    "knowledgeBaseId": "880e8400-e29b-41d4-a716-446655440003",
+    "topK": 5,
+    "similarityThreshold": 0.7
+  },
+  "metadata": {
+    "scope": "billing and account inquiries",
+    "toneStyle": "professional, warm, and helpful"
+  },
+  "resolutionCriteria": [
+    { "label": "Issue identified", "description": "The root cause of the customer's issue was identified" },
+    { "label": "Resolution provided", "description": "A concrete solution or workaround was given to the customer" }
+  ]
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "Customer Support Agent",
+  "description": "AI agent for handling customer inquiries",
+  "instructions": "You are a helpful customer support agent for Acme Corp...",
+  "policy": "Refunds are only allowed within 30 days of purchase. Escalate complaints about billing errors to a human agent.",
+  "status": "draft",
+  "version": 1,
+  "modelConfig": {
+    "model": "openai/gpt-4o-mini",
+    "modelSettings": {
+      "temperature": 0.7,
+      "maxTokens": 1024
+    }
+  },
+  "voiceConfig": {
+    "pipelineMode": "batch",
+    "voiceId": "EXAVITQu4vr4xnSDxMaL"
+  },
+  "memoryConfig": {
+    "enabled": true,
+    "lastMessages": 20
+  },
+  "knowledgeBaseConfig": {
+    "knowledgeBaseId": "880e8400-e29b-41d4-a716-446655440003",
+    "topK": 5,
+    "similarityThreshold": 0.7
+  },
+  "metadata": {
+    "scope": "billing and account inquiries",
+    "toneStyle": "professional, warm, and helpful"
+  },
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z",
+  "createdBy": "770e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+---
+
+### List all agents
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Paginated list of agents |
+
+```bash
+curl -X GET https://api.gomobile.ma/api/agents?page=1&limit=20&status=active&search=support \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+      "name": "Customer Support Agent",
+      "description": "AI agent for handling customer inquiries",
+      "instructions": "You are a helpful customer support agent...",
+      "policy": null,
+      "status": "active",
+      "version": 1,
+      "modelConfig": { "model": "openai/gpt-4o-mini" },
+      "voiceConfig": null,
+      "memoryConfig": { "enabled": true, "lastMessages": 20 },
+      "knowledgeBaseConfig": null,
+      "metadata": {},
+      "createdAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z",
+      "createdBy": null
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+---
+
+### Get a single agent by ID
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Agent found |
+| `404` | Agent not found or deleted |
+
+---
+
+### Update an agent
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Agent updated successfully |
+| `400` | Invalid input data |
+| `404` | Agent not found |
+
+```bash
+curl -X PATCH https://api.gomobile.ma/api/agents/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "name": "Premium Support Agent",
+  "instructions": "You are a premium support agent with extended capabilities...",
+  "knowledgeBaseConfig": {
+    "knowledgeBaseId": "880e8400-e29b-41d4-a716-446655440003",
+    "documentGroups": ["product-docs", "faqs"],
+    "topK": 5,
+    "similarityThreshold": 0.7
+  }
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Premium Support Agent",
+  "instructions": "You are a premium support agent with extended capabilities...",
+  "policy": "Premium customers get free returns within 90 days.",
+  "knowledgeBaseConfig": {
+    "knowledgeBaseId": "880e8400-e29b-41d4-a716-446655440003",
+    "documentGroups": ["product-docs", "faqs"],
+    "topK": 5,
+    "similarityThreshold": 0.7
+  },
+  ...
+}
+```
+
+---
+
+### Soft delete an agent
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Agent soft-deleted |
+| `404` | Agent not found |
+
+---
+
+### Activate a draft agent
+
+**Status Transitions:**
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Agent activated |
+| `404` | Agent not found |
+| `409` | Invalid status transition |
+
+---
+
+### Archive an active agent
+
+**Status Transitions:**
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Agent archived |
+| `404` | Agent not found |
+| `409` | Invalid status transition |
+
+---
+
+### Restore an archived agent back to active status
+
+**Status Transitions:**
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Agent restored to active |
+| `404` | Agent not found |
+| `409` | Invalid status transition |
+
+---
+
+### Test an agent in playground mode
+
+If the agent has a `knowledgeBaseConfig`, RAG retrieval is performed against the linked knowledge base before generating the response.
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| `200` | Response generated |
+| `404` | Agent not found |
+
+```bash
+curl -X POST https://api.gomobile.ma/api/agents/550e8400-e29b-41d4-a716-446655440000/test \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "message": "Hello, I need help with my order"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "response": "Hello! I'd be happy to help you with your order. Could you please provide me with your order number so I can look up the details?",
+  "usage": {
+    "inputTokens": 156,
+    "outputTokens": 42
+  }
+}
+```
+
+---
+
+## Agent Status Lifecycle
+
+```
+    +---------+  activate   +---------+  archive   +----------+
+    |  draft  | ----------> |  active | ---------> | archived |
+    +---------+             +---------+            +----------+
+         |                      ^                       |
+         |   archive            |       restore         |
+         +----------------------+-----------------------+
+```
+
+**Transitions:**
+
+**Constraints:**
+
+- Only `active` agents can be used in CONNECT_AGENT call flow nodes
+- Only `active` agents can start new conversations
+- Deleting an agent is a soft delete (sets `deletedAt` timestamp)
+- Soft-deleted agents are excluded from all list endpoints
+
+---
+
+## Supported Models
+
+---
+
+## Credit Costs
+
+See [Credit API](/features/credits) for detailed pricing.

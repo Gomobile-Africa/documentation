@@ -1,0 +1,173 @@
+---
+title: "Auth API"
+description: "Token refresh, sessions, and logout endpoints"
+---
+
+<Info>
+**Base path: `/auth`**
+</Info>
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============ Enums ============
+
+type OrgType = 'government' | 'enterprise' | 'individual' | 'education' | 'ngo';
+
+type OrgPlan = 'trial' | 'free' | 'basic' | 'advanced' | 'enterprise';
+
+type OrgSize = '1-10' | '11-50' | '51-200' | '500+';
+
+type OrgPrimaryUse = 'sales' | 'support' | 'market research';
+
+type OrgStatus = 'active' | 'suspended' | 'inactive';
+
+// ============ Request Types ============
+
+interface RefreshTokenRequest {
+  refresh_token: string;
+}
+
+interface LogoutRequest {
+  refresh_token: string;
+}
+
+interface RevokeSessionRequest {
+  sessionId: string;       // UUID
+}
+
+// ============ Response Types ============
+
+interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
+interface MessageResponse {
+  message: string;
+}
+
+interface Session {
+  id: string;
+  userAgent: string | null;
+  lastAccessedAt: string;  // ISO date
+  createdAt: string;       // ISO date
+}
+
+interface SessionsResponse {
+  sessions: Session[];
+}
+```
+
+</Accordion>
+
+### Refresh access token using refresh token
+
+```bash
+curl -X POST https://api.gomobile.ma/api/auth/refresh \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "refresh_token": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
+}
+'
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "bmV3IHJlZnJlc2ggdG9rZW4..."
+}
+```
+
+---
+
+### Logout and invalidate refresh token
+
+```bash
+curl -X POST https://api.gomobile.ma/api/auth/logout \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "refresh_token": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
+}
+'
+```
+
+Response:
+
+```json
+{
+  "message": "Logged out successfully"
+}
+```
+
+---
+
+### Logout from all sessions
+
+```bash
+curl -X POST https://api.gomobile.ma/api/auth/logout-all \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "message": "All sessions logged out successfully"
+}
+```
+
+---
+
+### Get all active sessions for the current user
+
+```bash
+curl -X POST https://api.gomobile.ma/api/auth/sessions \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "sessions": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      "lastAccessedAt": "2025-01-15T10:30:00.000Z",
+      "createdAt": "2025-01-10T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### Revoke a specific session by ID
+
+```bash
+curl -X POST https://api.gomobile.ma/api/auth/revoke-session \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "message": "Session revoked successfully"
+}
+```

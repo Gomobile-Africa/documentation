@@ -3,22 +3,172 @@ title: "Call Reports"
 description: "Detailed reports for individual calls and call jobs"
 ---
 
-Call reports provide detailed information about call execution, including all attempts, events, and flow execution paths.
+Query reports for call requests, including all attempts, events, and flow execution details.
 
-## Job reports
+<Info>
+**Base path: `/call-report`**
+</Info>
 
-When you make an ad-hoc call via `/call-requests`, you get a `jobId`. Use it to fetch the complete report:
+---
 
-```bash
-curl -X GET https://api.gomobile.ma/api/call-report/JOB_ID \
-  -H "x-api-key: YOUR_API_KEY"
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// JOB STATUS
+// ============================================
+
+type JobStatus = 'queued' | 'active' | 'completed' | 'failed';
+
+// ============================================
+// CALL DETAILS
+// ============================================
+
+interface CallDetails {
+  status: string;
+  direction: 'inbound' | 'outbound';
+  from: string;
+  to: string;
+  createdAt: string;       // ISO date
+  dialedAt?: string;       // ISO date
+  answeredAt?: string;     // ISO date
+  terminatedAt?: string;   // ISO date
+  durationMs?: number;
+}
+
+// ============================================
+// NODE EXECUTION PATH ENTRY
+// ============================================
+
+interface NodeExecutionPathEntry {
+  nodeId: string;
+  nodeType: string;       // 'dial' | 'play' | 'dtmf' | 'record' | 'condition' | 'set_variable' | 'hangup' | 'answer'
+  nodeLabel?: string;
+  outputPath?: string;    // Which output was taken (e.g., 'onAnswer', 'onBusy', 'onComplete')
+  timestamp: string;      // ISO date
+}
+
+// ============================================
+// FLOW EXECUTION DETAILS
+// ============================================
+
+interface FlowExecutionDetails {
+  flowId: string;
+  flowName: string;
+  flowVersion: number;
+  executionPath: NodeExecutionPathEntry[];
+  finalVariables: Record<string, string | number | boolean | null>;
+  nodeExecutionCount: number;
+  flowStartedAt?: string;            // ISO date
+  flowCompletedAt?: string;          // ISO date
+}
+
+// ============================================
+// NODE CONTEXT (embedded in event data)
+// ============================================
+
+interface NodeContext {
+  nodeId: string;
+  nodeType: string;
+  nodeExecutionIndex: number;
+}
+
+// ============================================
+// CALL EVENT
+// ============================================
+
+interface CallEvent {
+  type: string;                      // 'dial' | 'answer' | 'play' | 'record' | 'dtmf' | 'hangup' | etc.
+  timestamp: string;                 // ISO date
+  data: Record<string, unknown>;     // Includes nodeContext when applicable
+}
+
+// ============================================
+// CALL BILLING
+// ============================================
+
+interface NodeCostReport {
+  nodeId: string;
+  nodeType: string;
+  durationMs: number | null;
+  cost: number;
+  costPerUnit: number;
+  unit: 'second' | 'minute' | 'flat';
+  minDurationMs: number | null;
+}
+
+interface CallBillingReport {
+  nodes: NodeCostReport[];
+  totalCost: number;
+}
+
+// ============================================
+// CALL ATTEMPT REPORT
+// ============================================
+
+interface CallAttemptReport {
+  /** Unique call ID (UUID) */
+  callId: string;
+
+  /** Attempt number (1-based) */
+  attempt: number;
+
+  /** Business context (if from program execution) */
+  programId?: string;
+  programExecutionId?: string;
+  contactId?: string;
+
+  /** Call metadata */
+  call: CallDetails;
+
+  /** Final outcome */
+  outcome: string;
+
+  /** Human-readable reason */
+  outcomeReason?: string;
+
+  /** Flow execution details (if flow was executed) */
+  flowExecution?: FlowExecutionDetails;
+
+  /** Billing breakdown (only for completed calls with cost) */
+  billing?: CallBillingReport;
+
+  /** Events timeline */
+  events: CallEvent[];
+}
+
+// ============================================
+// JOB REPORT
+// ============================================
+
+interface JobReport {
+  /** Job ID (UUID from POST /call-requests) */
+  jobId: string;
+
+  /** Current job status */
+  status: JobStatus;
+
+  /** Final outcome (from last attempt) */
+  finalOutcome?: string;
+
+  /** All call attempts */
+  attempts: CallAttemptReport[];
+}
 ```
 
-Response:
+</Accordion>
+
+---
+
+### Get full report for a call request job
+
+Completed job with retry (first attempt busy, second answered):
 
 ```json
 {
-  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "jobId": "ec8edce0-f898-4d34-b2fc-542ef98f38a5",
   "status": "completed",
   "finalOutcome": "completed",
   "attempts": [
@@ -28,29 +178,77 @@ Response:
       "call": {
         "status": "busy",
         "direction": "outbound",
-        "from": "+212500000001",
-        "to": "+212612345678",
-        "createdAt": "2025-01-15T10:30:00.000Z",
-        "dialedAt": "2025-01-15T10:30:00.100Z",
-        "terminatedAt": "2025-01-15T10:30:07.000Z"
+        "from": "1000",
+        "to": "6001",
+        "createdAt": "2025-12-16T11:15:00.062Z",
+        "dialedAt": "2025-12-16T11:15:00.103Z",
+        "terminatedAt": "2025-12-16T11:15:07.352Z"
       },
       "outcome": "busy",
+      "outcomeReason": "Flow completed (Error in dial node: Remote hangup for call ...: busy (cause: 17, code: 17))",
       "flowExecution": {
-        "flowId": "flow-uuid",
-        "flowName": "Payment Reminder",
+        "flowId": "03418632-e6da-451e-875f-23b55f938e3e",
+        "flowName": "credit-dtmf-playback-test",
         "flowVersion": 1,
         "executionPath": [
           {
             "nodeId": "dial-1",
             "nodeType": "dial",
             "nodeLabel": "Dial Contact",
-            "timestamp": "2025-01-15T10:30:00.070Z",
+            "timestamp": "2025-12-16T11:15:00.071Z",
             "outputPath": "onBusy"
+          },
+          {
+            "nodeId": "hangup-1",
+            "nodeType": "hangup",
+            "nodeLabel": "End Call",
+            "timestamp": "2025-12-16T11:15:07.333Z",
+            "outputPath": "terminated"
           }
         ],
-        "nodeExecutionCount": 1
+        "finalVariables": {
+          "contact.id": "6fd21c0b-bf05-407e-bcd7-9f9aab7ab91e",
+          "sys.callId": "1cbdf482-4dac-41ed-a430-2e311add389d",
+          "sys.attempt": 1,
+          "sys.maxAttempts": 3,
+          "contact.phone": "6001",
+          "contact.fullName": "dev-anouar-1",
+          "contact.customAttributes.credit": 90856
+        },
+        "nodeExecutionCount": 2,
+        "flowStartedAt": "2025-12-16T11:15:00.070Z",
+        "flowCompletedAt": "2025-12-16T11:15:07.352Z"
       },
-      "events": []
+      "events": [
+        {
+          "type": "dial",
+          "timestamp": "2025-12-16T11:15:00.072Z",
+          "data": {
+            "to": "6001",
+            "from": "1000",
+            "timeout": 30000,
+            "enableAMD": false,
+            "nodeContext": {
+              "nodeId": "dial-1",
+              "nodeType": "dial",
+              "nodeExecutionIndex": 2
+            }
+          }
+        },
+        {
+          "type": "hangup",
+          "timestamp": "2025-12-16T11:15:07.352Z",
+          "data": {
+            "hangupType": "busy",
+            "hangupReason": "Flow completed (...)",
+            "nodeContext": {
+              "nodeId": "hangup-1",
+              "nodeType": "hangup",
+              "nodeExecutionIndex": 3
+            }
+          }
+        }
+      ]
     },
     {
       "callId": "eae26ac8-be39-490b-b9ed-a82e7f4048f6",
@@ -58,153 +256,230 @@ Response:
       "call": {
         "status": "completed",
         "direction": "outbound",
-        "from": "+212500000001",
-        "to": "+212612345678",
-        "createdAt": "2025-01-15T10:35:00.000Z",
-        "dialedAt": "2025-01-15T10:35:00.100Z",
-        "answeredAt": "2025-01-15T10:35:05.000Z",
-        "terminatedAt": "2025-01-15T10:35:45.000Z",
-        "durationMs": 40000
+        "from": "1000",
+        "to": "6001",
+        "createdAt": "2025-12-16T11:15:30.105Z",
+        "dialedAt": "2025-12-16T11:15:30.139Z",
+        "answeredAt": "2025-12-16T11:15:34.479Z",
+        "durationMs": 7757
       },
       "outcome": "completed",
       "flowExecution": {
-        "flowId": "flow-uuid",
-        "flowName": "Payment Reminder",
+        "flowId": "03418632-e6da-451e-875f-23b55f938e3e",
+        "flowName": "credit-dtmf-playback-test",
         "flowVersion": 1,
         "executionPath": [
           {
             "nodeId": "dial-1",
             "nodeType": "dial",
+            "nodeLabel": "Dial Contact",
+            "timestamp": "2025-12-16T11:15:30.114Z",
             "outputPath": "onAnswer"
           },
           {
-            "nodeId": "play-greeting",
+            "nodeId": "play-credit",
             "nodeType": "play",
+            "nodeLabel": "Play Credit Balance",
+            "timestamp": "2025-12-16T11:15:34.481Z",
             "outputPath": "onComplete"
           }
         ],
-        "nodeExecutionCount": 2
+        "finalVariables": {
+          "answeredBy": "human",
+          "sys.attempt": 2,
+          "sys.maxAttempts": 3,
+          "contact.customAttributes.credit": 90856
+        },
+        "nodeExecutionCount": 2,
+        "flowStartedAt": "2025-12-16T11:15:30.113Z"
       },
-      "events": []
+      "events": [
+        {
+          "type": "dial",
+          "timestamp": "2025-12-16T11:15:30.115Z",
+          "data": {
+            "to": "6001",
+            "from": "1000",
+            "timeout": 30000,
+            "enableAMD": false,
+            "nodeContext": {
+              "nodeId": "dial-1",
+              "nodeType": "dial",
+              "nodeExecutionIndex": 2
+            }
+          }
+        },
+        {
+          "type": "answer",
+          "timestamp": "2025-12-16T11:15:34.479Z",
+          "data": {
+            "answeredBy": "human",
+            "ringDurationMs": 4340,
+            "nodeContext": {
+              "nodeId": "dial-1",
+              "nodeType": "dial",
+              "nodeExecutionIndex": 2
+            }
+          }
+        },
+        {
+          "type": "play",
+          "timestamp": "2025-12-16T11:15:42.231Z",
+          "data": {
+            "durationMs": 6420,
+            "bufferCount": 2,
+            "completedBy": "stopped",
+            "nodeContext": {
+              "nodeId": "play-credit",
+              "nodeType": "play",
+              "nodeExecutionIndex": 3
+            }
+          }
+        }
+      ]
     }
   ]
 }
 ```
 
-## Job status
-
-| Status | Description |
-|--------|-------------|
-| `queued` | Waiting to execute |
-| `active` | Currently executing |
-| `completed` | All attempts finished |
-| `failed` | Job failed to process |
-
-## Individual call reports
-
-Get details for a specific call by its call ID:
-
-```bash
-curl -X GET https://api.gomobile.ma/api/call-report/call/CALL_ID \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-This returns a single `CallAttemptReport` with full details.
-
-## Call details
-
-Each attempt includes call metadata:
-
-| Field | Description |
-|-------|-------------|
-| `status` | Final call status |
-| `direction` | `inbound` or `outbound` |
-| `from` | Caller ID |
-| `to` | Destination number |
-| `createdAt` | When call was created |
-| `dialedAt` | When dial started |
-| `answeredAt` | When call was answered |
-| `terminatedAt` | When call ended |
-| `durationMs` | Call duration in milliseconds |
-
-## Flow execution details
-
-The `flowExecution` object shows exactly what happened during the call:
-
-| Field | Description |
-|-------|-------------|
-| `flowId` | Flow that was executed |
-| `flowName` | Flow name |
-| `flowVersion` | Flow version number |
-| `executionPath` | Nodes executed in order |
-| `finalVariables` | Variable values at end |
-| `nodeExecutionCount` | Total nodes executed |
-
-### Execution path
-
-The `executionPath` array shows each node that executed:
+Queued job (not yet executed):
 
 ```json
 {
-  "nodeId": "dtmf-menu",
-  "nodeType": "dtmf",
-  "nodeLabel": "Main Menu",
-  "timestamp": "2025-01-15T10:35:10.000Z",
-  "outputPath": "branches.1"
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "attempts": []
 }
 ```
 
-The `outputPath` shows which output was taken (e.g., `onAnswer`, `onBusy`, `branches.1`).
+**Error Responses:**
 
-## Event types
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Job not found (invalid jobId or job cleaned up with no calls) |
 
-The `events` array contains detailed event data:
+---
 
-| Event | Description | Key Data |
-|-------|-------------|----------|
-| `dial` | Outbound dial initiated | `to`, `from`, `timeout` |
-| `answer` | Call answered | `answeredBy`, `ringDurationMs` |
-| `play` | Audio playback completed | `durationMs`, `completedBy` |
-| `record_start` | Recording started | - |
-| `record_stop` | Recording completed | `recordId`, `durationMs` |
-| `dtmf_collected` | DTMF input collected | `digits`, `mode` |
-| `hangup` | Call terminated | `hangupType`, `hangupReason` |
+### Get detailed report for a single call
 
-## Program call context
-
-Calls made through programs include additional context:
-
+**Example Response:**
 ```json
 {
-  "programId": "program-uuid",
-  "programExecutionId": "execution-uuid",
-  "contactId": "contact-uuid"
+  "callId": "60e8fbc0-2cda-4b2e-bc0f-221c3121bf09",
+  "attempt": 1,
+  "programId": "abc12345-1234-5678-9012-abcdef123456",
+  "programExecutionId": "exec-9876-5432-1098-fedcba987654",
+  "contactId": "6fd21c0b-bf05-407e-bcd7-9f9aab7ab91e",
+  "call": {
+    "status": "completed",
+    "direction": "outbound",
+    "from": "1000",
+    "to": "6001",
+    "createdAt": "2025-12-18T14:17:32.736Z",
+    "dialedAt": "2025-12-18T14:17:32.800Z",
+    "answeredAt": "2025-12-18T14:17:36.100Z",
+    "terminatedAt": "2025-12-18T14:18:01.134Z",
+    "durationMs": 25001
+  },
+  "outcome": "completed",
+  "outcomeReason": "Flow completed successfully",
+  "flowExecution": {
+    "flowId": "03418632-e6da-451e-875f-23b55f938e3e",
+    "flowName": "credit-dtmf-playback-test",
+    "flowVersion": 1,
+    "executionPath": [
+      {
+        "nodeId": "dial-1",
+        "nodeType": "dial",
+        "nodeLabel": "Dial Contact",
+        "timestamp": "2025-12-18T14:17:32.740Z",
+        "outputPath": "onAnswer"
+      },
+      {
+        "nodeId": "play-credit",
+        "nodeType": "play",
+        "nodeLabel": "Play Credit Balance",
+        "timestamp": "2025-12-18T14:17:36.105Z",
+        "outputPath": "onComplete"
+      }
+    ],
+    "finalVariables": {
+      "contact.id": "6fd21c0b-bf05-407e-bcd7-9f9aab7ab91e",
+      "sys.callId": "60e8fbc0-2cda-4b2e-bc0f-221c3121bf09",
+      "sys.attempt": 1,
+      "contact.customAttributes.credit": 90856
+    },
+    "nodeExecutionCount": 2,
+    "flowStartedAt": "2025-12-18T14:17:32.738Z",
+    "flowCompletedAt": "2025-12-18T14:18:01.134Z"
+  },
+  "billing": {
+    "nodes": [
+      {
+        "nodeId": "dial-1",
+        "nodeType": "dial",
+        "durationMs": 25001,
+        "cost": 1.875075,
+        "costPerUnit": 0.075,
+        "unit": "second",
+        "minDurationMs": 10000
+      }
+    ],
+    "totalCost": 1.875075
+  },
+  "events": [
+    {
+      "type": "dial",
+      "timestamp": "2025-12-18T14:17:32.741Z",
+      "data": {
+        "to": "6001",
+        "from": "1000",
+        "timeout": 30000,
+        "nodeContext": { "nodeId": "dial-1", "nodeType": "dial", "nodeExecutionIndex": 1 }
+      }
+    },
+    {
+      "type": "answer",
+      "timestamp": "2025-12-18T14:17:36.100Z",
+      "data": {
+        "answeredBy": "human",
+        "ringDurationMs": 3300,
+        "nodeContext": { "nodeId": "dial-1", "nodeType": "dial", "nodeExecutionIndex": 1 }
+      }
+    },
+    {
+      "type": "play",
+      "timestamp": "2025-12-18T14:17:58.500Z",
+      "data": {
+        "durationMs": 22000,
+        "completedBy": "stopped",
+        "nodeContext": { "nodeId": "play-credit", "nodeType": "play", "nodeExecutionIndex": 2 }
+      }
+    }
+  ]
 }
 ```
 
-These fields are `undefined` for ad-hoc calls.
+**Note:** `programId`, `programExecutionId`, and `contactId` are populated when the call was made through a program execution. They are `undefined` for direct call-request API calls.
 
-## Call outcomes
+**Error Responses:**
 
-| Outcome | Description |
-|---------|-------------|
-| `completed` | Call answered and flow completed |
-| `voicemail` | Voicemail detected (AMD enabled) |
-| `no_answer` | Ring timeout |
-| `busy` | Busy signal |
-| `rejected` | Call rejected |
-| `failed` | System or network error |
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Call not found or does not belong to organization |
 
-## Related topics
+---
 
-<CardGroup cols="2">
+## Event Types
 
-<Card title="Ad-hoc Calls" icon="phone" href="/features/ad-hoc-calls">
-  Make individual calls.
-</Card>
+---
 
-<Card title="Execution Reports" icon="chart-bar" href="/features/execution-reports">
-  Campaign-level reporting.
-</Card>
+## Notes
 
-</CardGroup>
+- Report works even if BullMQ job has been cleaned up (call data persisted in DB)
+- `attempts` array is ordered by attempt number (1, 2, 3...)
+- `status` is derived from BullMQ state if available, otherwise from call outcomes
+- `finalOutcome` is the outcome of the last attempt
+- `executionPath` shows exact nodes executed with their output paths
+- `events` include `nodeContext` to correlate with flow execution
+- Works for both ad-hoc calls (via `/call-requests`) and program calls

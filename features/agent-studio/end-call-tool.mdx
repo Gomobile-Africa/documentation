@@ -1,0 +1,349 @@
+---
+title: "End Call Tool"
+description: "Configure how AI agents end calls and collect resolution data"
+---
+
+This document describes how voice agents determine when to end a conversation and the `end_conversation` tool used in `function_call` exit mode.
+
+**Related:** [Voice Agents & CONNECT_AGENT Node](/features/agent-studio/voice-agents) | [Agents API](/features/agent-studio/agents)
+
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// EXIT MODES
+// ============================================
+
+/**
+ * How the agent determines when to end the conversation.
+ * Set in ConnectAgentNodeConfig.exitMode
+ */
+type ExitMode = 'function_call' | 'phrase_match';
+
+// ============================================
+// EXIT REASONS
+// ============================================
+
+/**
+ * Why the conversation ended.
+ * Determines which output path the flow follows after the CONNECT_AGENT node.
+ */
+type ConnectAgentExitReason =
+  | 'completed'           // Normal completion via [COMPLETE] phrase (phrase_match mode)
+  | 'function_call_exit'  // Agent called end_conversation tool (function_call mode)
+  | 'exit_phrase'         // User said an exit phrase
+  | 'max_turns'           // Max turns reached
+  | 'timeout'             // Conversation timeout exceeded
+  | 'user_hangup'         // Caller hung up
+  | 'error';              // An error occurred
+
+// ============================================
+// END_CONVERSATION TOOL
+// ============================================
+
+/**
+ * The end_conversation tool is automatically injected into agents
+ * when exitMode is 'function_call'.
+ *
+ * The LLM calls this tool when it determines the conversation
+ * should end. The tool's farewell_message is spoken to the caller
+ * via TTS before the call exits.
+ */
+interface EndConversationToolInput {
+  /**
+   * Why the conversation is ending.
+   * Used for analytics and reporting.
+   */
+  reason: 'user_goodbye' | 'issue_resolved' | 'user_request';
+
+  /**
+   * Natural farewell message to speak to the caller before ending.
+   * This is synthesized via TTS and played to the caller.
+   *
+   * Example: "Thank you for calling! Have a great day!"
+   */
+  farewell_message: string;
+
+  /**
+   * Brief one-sentence summary of what was discussed.
+   * Stored in the conversation record as `summary`.
+   *
+   * Example: "Customer inquired about return policy for order #12345."
+   */
+  summary: string;
+
+  /**
+   * Resolution criteria evaluations (only present when agent has criteria configured).
+   * The LLM must evaluate EVERY criterion. Array length must match criteria count.
+   * See resolution-criteria.md for full documentation.
+   */
+  resolution?: Array<{
+    /** Criterion UUID from the injected criteria list */
+    criterion_id: string;
+    /** Whether this criterion was met during the conversation */
+    met: boolean;
+    /** Brief evidence from the conversation supporting the judgment (min 1 char) */
+    evidence: string;
+  }>;
+}
+
+/** Tool output (internal, not user-facing) */
+interface EndConversationToolOutput {
+  ended: boolean; // Always true
+}
+
+// ============================================
+// EXIT CONTEXT
+// ============================================
+
+/**
+ * Additional context about why the conversation ended.
+ * Available in the ConversationResult and analytics.
+ */
+interface ExitContext {
+  /** The exit phrase that was matched (for exit_phrase reason) */
+  phrase?: string;
+  /** The turn index where exit was triggered */
+  turnIndex?: number;
+  /** Error type (for error reason) */
+  errorType?: string;
+  /** Error message (for error reason) */
+  errorMessage?: string;
+  /** The reason provided by the LLM tool call (for completed via function_call) */
+  toolExitReason?: string;
+  /** The summary provided by the LLM tool call (for completed via function_call) */
+  toolExitSummary?: string;
+  /**
+   * Per-criterion resolution results (only present when agent has criteria).
+   * Maps criterion_id → criterionId (camelCase in output).
+   */
+  resolutionResults?: Array<{
+    criterionId: string;
+    met: boolean;
+    evidence: string;
+  }>;
+  /** Denormalized resolution: true = all met, false = any not met, undefined = no criteria */
+  resolved?: boolean;
+}
+
+// ============================================
+// TURN RESULT (Tool Call Signal)
+// ============================================
+
+/**
+ * When the LLM calls a tool instead of returning text,
+ * the turn result includes a toolCallSignal.
+ */
+interface TurnResult {
+  // ... other fields (see voice-agents.md) ...
+
+  /**
+   * Present when the LLM called a tool instead of generating text.
+   * For end_conversation, toolName is 'end_conversation' and
+   * args contains { reason, farewell_message, summary }.
+   */
+  toolCallSignal?: {
+    toolName: string;
+    args: Record<string, unknown>;
+  };
+}
+```
+
+</Accordion>
+
+---
+
+## Exit Modes Explained
+
+### `function_call` (Default, Recommended)
+
+The LLM is given the `end_conversation` tool and decides when to call it. This is the most natural exit strategy because the LLM understands conversational context.
+
+**How it works with `maxSteps: 1`:**
+
+Each turn, the LLM produces either:
+- **Text response** (normal turn) - `finishReason: 'stop'`, text is spoken via TTS
+- **Tool call** (end conversation) - `finishReason: 'tool-calls'`, `farewell_message` from tool args is spoken via TTS
+
+The LLM cannot do both in a single step. When it calls `end_conversation`, the `farewell_message` arg is used as the spoken response.
+
+**When the LLM calls end_conversation:**
+
+```
+LLM Response:
+  finishReason: 'tool-calls'
+  toolCalls: [{
+    toolName: 'end_conversation',
+    args: {
+      reason: 'issue_resolved',
+      farewell_message: 'Thank you for calling! Your refund has been processed.',
+      summary: 'Customer requested refund for order #12345, approved and processed.'
+    }
+  }]
+
+Result:
+  1. farewell_message is spoken to caller via TTS
+  2. Conversation exits with reason 'function_call_exit'
+  3. summary is stored in conversation.summary
+  4. reason is stored in exitContext.toolExitReason
+```
+
+**Tool Definition (internal):**
+
+```typescript
+{
+  id: 'end_conversation',
+  description:
+    'End the phone conversation. Call this tool ONLY when: ' +
+    '(1) the caller explicitly says goodbye or wants to end the call, ' +
+    "(2) the caller's issue or request has been fully resolved, or " +
+    '(3) the caller explicitly asks to hang up or end the conversation. ' +
+    'You MUST provide a natural, warm farewell message that will be spoken to the caller.',
+  inputSchema: z.object({
+    reason: z
+      .enum(['user_goodbye', 'issue_resolved', 'user_request'])
+      .describe(
+        'Why the conversation is ending: ' +
+          'user_goodbye = caller said goodbye/bye, ' +
+          'issue_resolved = the task or question is fully handled, ' +
+          'user_request = caller explicitly asked to end the call',
+      ),
+    farewell_message: z
+      .string()
+      .describe(
+        'A natural, warm farewell message to speak to the caller before the call ends. ' +
+          'Should be contextually relevant to the conversation.',
+      ),
+    summary: z
+      .string()
+      .describe(
+        'Brief one-sentence summary of what was discussed or resolved in the conversation.',
+      ),
+  }),
+  outputSchema: z.object({ ended: z.boolean() }),
+  execute: async () => ({ ended: true }),
+}
+```
+
+**Important:** The tool's `execute` function is a no-op. The actual exit detection happens in the orchestrator by checking `finishReason === 'tool-calls'` and inspecting `toolCalls[0].toolName`.
+
+### Dynamic Tool (with Resolution Criteria)
+
+When an agent has [resolution criteria](/features/agent-studio/resolution-criteria) configured, the tool schema is dynamically extended with a `resolution` field. The criteria descriptions are injected into the tool's `describe()` text so the LLM knows exactly what to evaluate.
+
+```typescript
+// Dynamic tool schema (generated per-agent at conversation start)
+{
+  inputSchema: z.object({
+    reason: z.enum([...]),
+    farewell_message: z.string(),
+    summary: z.string(),
+    resolution: z
+      .array(z.object({
+        criterion_id: z.string(),
+        met: z.boolean(),
+        evidence: z.string().min(1),
+      }))
+      .length(criteria.length)  // Must evaluate ALL criteria
+      .describe(
+        'Evaluate EACH resolution criterion based on the conversation:\n' +
+        '1. [uuid-1] "Needs assessment completed": Customer\'s requirements and budget...\n' +
+        '2. [uuid-2] "Product recommendation made": At least one product was recommended...'
+      ),
+  }),
+}
+```
+
+**Key behaviors:**
+- When no criteria are configured, the static tool (without `resolution`) is used — zero overhead
+- The `resolution` array length must match the number of criteria — the LLM must evaluate every criterion
+- Evidence is required (min 1 char) — forces the LLM to justify each judgment
+- Criteria are frozen at conversation start — changes mid-conversation have no effect
+
+---
+
+### `phrase_match`
+
+The system checks the agent's text response for the literal string `[COMPLETE]`. If found, the conversation ends with reason `completed`.
+
+**How it works:**
+
+```
+LLM Response:
+  text: "Thank you for calling! Have a great day! [COMPLETE]"
+
+Result:
+  1. The full response (including [COMPLETE]) is spoken via TTS
+  2. Conversation exits with reason 'completed'
+```
+
+**Important:** `[COMPLETE]` is **not** stripped from the response before TTS. The agent's instructions should guide it to place `[COMPLETE]` at the very end of its farewell so it is less noticeable when spoken.
+
+**Limitations:**
+- Less natural - requires the LLM to include `[COMPLETE]` in its response
+- `[COMPLETE]` will be spoken to the caller (it is not stripped)
+- The `[COMPLETE]` string may occasionally appear in normal conversation
+- No structured reason or summary (unlike function_call mode)
+
+---
+
+## Exit Condition Priority
+
+Exit conditions are checked in this order after every turn. The first matching condition triggers the exit.
+
+**Key detail:** Exit phrase matching (priority 2) is always active, even in `function_call` mode. This provides a safety net - if the user says "goodbye" but the LLM doesn't call the tool, the phrase matcher catches it.
+
+---
+
+## Exit Reason to Output Path Mapping
+
+---
+
+## Conversation Data After Exit
+
+After the conversation ends, the `ConversationResponse` (see [conversations.md](/features/agent-studio/conversations)) is populated with:
+
+---
+
+## Frontend Integration Notes
+
+### Call Flow Builder UI
+
+When configuring a CONNECT_AGENT node in the flow builder:
+
+1. **Exit Mode Selection** - Offer a dropdown with two options:
+   - `function_call` (default, recommended) - "Agent decides when to end (AI-powered)"
+   - `phrase_match` - "End when agent says [COMPLETE] (pattern-based)"
+
+2. **Exit Phrases** - Always show this field regardless of exit mode (it's checked in both modes as a safety net). Provide defaults: `['goodbye', 'bye', 'thank you goodbye']`.
+
+3. **Output Paths** - Show all 6 output ports on the node:
+   - `onComplete` (required, always show)
+   - `onExitPhrase` (optional)
+   - `onMaxTurns` (optional)
+   - `onTimeout` (optional)
+   - `onHangup` (optional)
+   - `onError` (optional)
+
+   If an optional output is not connected, the flow falls back to `onComplete` (or `default` for errors).
+
+4. **Variable Extraction** - When configuring `extractVariables`:
+   - `last_response` needs no additional config
+   - `pattern` needs a regex input field with validation
+   - Do NOT show `semantic` as an option (it's not implemented)
+
+### Analytics Dashboard
+
+Display exit reason breakdown for each agent/node:
+
+```
+```
+
+Key metrics to surface:
+- **Completion rate**: `(completed + exit_phrase) / total` - higher is better
+- **Error rate**: `error / total` - lower is better
+- **Hangup rate**: `user_hangup / total` - high values suggest poor agent quality

@@ -1,0 +1,424 @@
+---
+title: "Voice Agents"
+description: "Connect AI agents to call flows with the CONNECT_AGENT node"
+---
+
+Voice agents are standard agents configured with a `voiceConfig` and used inside call flows via the `CONNECT_AGENT` node. This document covers the voice pipeline configuration, the CONNECT_AGENT node schema, and audio/provider details needed for frontend integration (call flow builder UI).
+
+**Related:** [End Call Tool & Exit Modes](/features/agent-studio/end-call-tool) | [Agents API](/features/agent-studio/agents) | [Call Flow API](/features/call-flows)
+
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// VOICE PIPELINE CONFIGURATION (Agent-Level)
+// ============================================
+
+/**
+ * Voice configuration stored on the agent.
+ * Set via POST/PATCH /agents endpoints.
+ *
+ * Discriminated union on `pipelineMode`:
+ * - 'batch': Full audio capture -> STT -> LLM -> TTS -> play (sequential)
+ * - 'streaming': Streaming LLM + sentence-chunked TTS (lower latency)
+ * - 'sts': Speech-to-speech (future, not yet implemented)
+ */
+type AgentVoiceConfig =
+  | BatchStreamingVoiceConfig
+  | StsVoiceConfig;
+
+interface BatchStreamingVoiceConfig {
+  /** Pipeline mode */
+  pipelineMode: 'batch' | 'streaming';
+  /**
+   * ElevenLabs voice ID for TTS.
+   * If omitted, uses platform default voice.
+   */
+  voiceId?: string;
+}
+
+interface StsVoiceConfig {
+  /** Speech-to-speech mode (not yet implemented) */
+  pipelineMode: 'sts';
+  /** STS provider */
+  stsProvider: 'openai' | 'gemini';
+}
+
+// ============================================
+// CONNECT_AGENT NODE CONFIGURATION
+// ============================================
+
+/**
+ * Configuration for the CONNECT_AGENT call flow node.
+ * This is NOT an API endpoint - it's the node config schema
+ * used in the call flow builder UI.
+ */
+interface ConnectAgentNodeConfig {
+  /** Agent UUID (required). Must reference an 'active' agent. */
+  agentId: string;
+
+  /**
+   * Maximum conversation turns before forced exit.
+   * Default: 10 | Min: 1 | Max: 50
+   */
+  maxTurns?: number;
+
+  /**
+   * Total conversation timeout in milliseconds.
+   * Default: 300000 (5 min) | Min: 30000 (30s) | Max: 600000 (10 min)
+   */
+  conversationTimeout?: number;
+
+  /**
+   * Per-turn timeout in milliseconds (how long to wait for user speech).
+   * Default: 10000 (10s) | Min: 3000 (3s) | Max: 30000 (30s)
+   */
+  turnTimeout?: number;
+
+  /**
+   * Phrases that trigger conversation exit (checked every turn in both exit modes).
+   * Default: ['goodbye', 'bye', 'thank you goodbye']
+   * Max: 10 phrases | Max length per phrase: 100 chars
+   */
+  exitPhrases?: string[];
+
+  /**
+   * How the agent determines when to end the conversation.
+   * Default: 'function_call'
+   *
+   * - 'function_call': LLM calls end_conversation tool (recommended)
+   * - 'phrase_match': Pattern matching against agent response for [COMPLETE]
+   *
+   * See end-call-tool.md for full details.
+   */
+  exitMode?: 'function_call' | 'phrase_match';
+
+  /**
+   * Map flow state variables into the agent's conversation context.
+   * Max: 20 mappings
+   *
+   * Example: Map the caller's name from flow state into the agent context
+   * { flowVariable: "caller_name", contextKey: "customerName" }
+   */
+  contextVariables?: ContextVariableMapping[];
+
+  /**
+   * Extract variables from the conversation into flow state.
+   * Max: 10 extractions
+   *
+   * Supported methods: 'last_response', 'pattern'
+   * ('semantic' is defined but NOT implemented - rejected at validation)
+   */
+  extractVariables?: VariableExtractionConfig[];
+
+  /**
+   * Voice configuration override for this node.
+   * Accepted by the schema but NOT yet applied in v0 — the agent's own
+   * voiceConfig is always used. Reserved for future implementation.
+   */
+  voiceConfig?: VoiceProviderConfig;
+
+  /**
+   * Message spoken by the agent before the conversation loop starts.
+   * Max: 1000 chars
+   * Example: "Hello! How can I help you today?"
+   */
+  initialMessage?: string;
+
+  /**
+   * Whether to record the full conversation audio.
+   * Default: false
+   */
+  recordConversation?: boolean;
+}
+
+// ============================================
+// CONTEXT VARIABLE MAPPING
+// ============================================
+
+interface ContextVariableMapping {
+  /** Variable name in flow state (source) */
+  flowVariable: string;
+  /** Key name in agent context (target) */
+  contextKey: string;
+  /** Optional description for the agent's context */
+  description?: string;
+}
+
+// ============================================
+// VARIABLE EXTRACTION (Discriminated Union)
+// ============================================
+
+/**
+ * Extract values from the conversation into flow state variables.
+ *
+ * Note: The type includes SemanticExtraction but it is NOT implemented.
+ * Validation rejects 'semantic' method at flow validation time.
+ * Only 'last_response' and 'pattern' methods are usable.
+ */
+type VariableExtractionConfig =
+  | LastResponseExtraction
+  | PatternExtraction
+  | SemanticExtraction;
+
+interface LastResponseExtraction {
+  /** Target flow variable name */
+  variableName: string;
+  /** Extracts the agent's last response text */
+  method: 'last_response';
+}
+
+interface PatternExtraction {
+  /** Target flow variable name */
+  variableName: string;
+  /** Extracts using regex pattern */
+  method: 'pattern';
+  /** Regex pattern. Uses first capture group, or full match if no groups. */
+  pattern: string;
+}
+
+interface SemanticExtraction {
+  /** Target flow variable name */
+  variableName: string;
+  /** NOT IMPLEMENTED - rejected at validation */
+  method: 'semantic';
+  /** Prompt for semantic extraction */
+  prompt: string;
+}
+
+// ============================================
+// VOICE PROVIDER CONFIG (Node-Level Override)
+// ============================================
+
+/**
+ * Voice config override at the node level.
+ *
+ * Note: In v0, node-level overrides are accepted by the schema but NOT
+ * applied at runtime — the agent's voiceConfig is always used.
+ * This is reserved for future implementation.
+ *
+ * STT and TTS providers are hardcoded in v0:
+ *   STT: Deepgram (Nova-3, prerecorded API — used in both batch and streaming modes)
+ *   TTS: ElevenLabs (Flash v2.5, pcm_8000 output)
+ */
+interface VoiceProviderConfig {
+  /** Pipeline mode override ('batch' or 'streaming') */
+  pipelineMode?: 'batch' | 'streaming';
+  /** ElevenLabs voice ID override */
+  voiceId?: string;
+}
+
+// ============================================
+// NODE OUTPUTS (Flow Routing)
+// ============================================
+
+/**
+ * Output paths for the CONNECT_AGENT node.
+ * Determines which node executes next based on how the conversation ended.
+ */
+interface ConnectAgentNodeOutputs {
+  /** Required. Next node when conversation completes normally. */
+  onComplete: string;
+  /** Next node when an exit phrase is detected */
+  onExitPhrase?: string;
+  /** Next node when max turns is reached */
+  onMaxTurns?: string;
+  /** Next node when conversation times out */
+  onTimeout?: string;
+  /** Next node when the caller hangs up */
+  onHangup?: string;
+  /** Next node when an error occurs */
+  onError?: string;
+  /** Fallback node (used for unhandled errors if onError is not set) */
+  default?: string;
+}
+```
+
+</Accordion>
+
+---
+
+## CONNECT_AGENT Node Schema (Call Flow Builder)
+
+This is the full node schema used in the call flow JSON:
+
+```json
+{
+  "id": "node_agent_1",
+  "type": "connect_agent",
+  "config": {
+    "agentId": "550e8400-e29b-41d4-a716-446655440000",
+    "maxTurns": 10,
+    "conversationTimeout": 300000,
+    "turnTimeout": 10000,
+    "exitPhrases": ["goodbye", "bye"],
+    "exitMode": "function_call",
+    "initialMessage": "Hello! How can I help you today?",
+    "recordConversation": false,
+    "contextVariables": [
+      {
+        "flowVariable": "caller_name",
+        "contextKey": "customerName"
+      },
+      {
+        "flowVariable": "account_id",
+        "contextKey": "accountId",
+        "description": "The customer's account identifier"
+      }
+    ],
+    "extractVariables": [
+      {
+        "variableName": "conversation_summary",
+        "method": "last_response"
+      },
+      {
+        "variableName": "order_number",
+        "method": "pattern",
+        "pattern": "ORD-([0-9]+)"
+      }
+    ],
+    "voiceConfig": {
+      "pipelineMode": "batch",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL"
+    }
+  },
+  "outputs": {
+    "onComplete": "node_post_call_survey",
+    "onExitPhrase": "node_hangup",
+    "onMaxTurns": "node_transfer_human",
+    "onTimeout": "node_hangup",
+    "onHangup": "node_hangup",
+    "onError": "node_error_handler"
+  }
+}
+```
+
+---
+
+## Configuration Defaults & Limits
+
+---
+
+## Voice Pipeline (v0 — Fixed Providers)
+
+In v0, the STT and TTS providers are **hardcoded**. There is no runtime provider selection.
+
+### Platform Defaults
+
+### What Can Be Overridden
+
+Only these fields are configurable at the agent level:
+
+**Note:** Node-level `voiceConfig` overrides are accepted by the schema but **not yet applied** in v0. The agent's own `voiceConfig` is always used.
+
+**Important:** ElevenLabs TTS output format is always forced to `pcm_8000` (raw PCM, 8kHz, 16-bit signed mono) to match the AudioSocket format. MP3 output is **not supported** and will throw an error.
+
+---
+
+## Audio Format
+
+All audio in the voice pipeline uses PCM 16-bit mono at 8kHz (Asterisk AudioSocket native format):
+
+```typescript
+{
+  sampleRate: 8000,
+  bitDepth: 16,
+  channels: 1,
+  encoding: 'pcm'
+}
+```
+
+---
+
+## Output Path Routing
+
+When the conversation ends, the node routes to the next node based on the exit reason:
+
+**Note:** For `error` exit reason, the fallback is the `default` output, not `onComplete`. This prevents error loops.
+
+---
+
+## Conversation Flow Diagram
+
+```
+CONNECT_AGENT Node Starts
+        |
+        v
+  [Speak initialMessage]  (if configured)
+        |
+        v
+  +---> [Listen for User Speech]
+  |           |
+  |           v
+  |     [STT: Transcribe Audio]
+  |           |
+  |           v
+  |     [RAG: Retrieve KB Chunks]  (if knowledgeBaseConfig set on agent)
+  |           |
+  |           v
+  |     [LLM: Generate Response]
+  |           |
+  |     +-----+-----+
+  |     |           |
+  |     v           v
+  |   [Text]    [Tool Call: end_conversation]
+  |     |           |
+  |     v           v
+  |   [TTS]    [TTS: Speak farewell_message]
+  |     |           |
+  |     v           v
+  |   [Check      [EXIT: 'function_call_exit']
+  |    Exit        exitContext: {
+  |    Conditions]    toolExitReason,
+  |     |             toolExitSummary
+  |     |           }
+  |     |
+  |     +-- No exit? Loop back
+  |     |
+  |     +-- Exit phrase matched? EXIT: 'exit_phrase'
+  |     |
+  |     +-- Max turns? EXIT: 'max_turns'
+  |     +-- Timeout? EXIT: 'timeout'
+  |     +-- Hangup? EXIT: 'user_hangup'
+  |     +-- Error? EXIT: 'error'
+  |
+  +-----+
+```
+
+---
+
+## Latency Budget (Typical Turn)
+
+---
+
+## Validation Rules (Call Flow Builder)
+
+These constraints are enforced during flow validation (before execution):
+
+---
+
+## Error Types
+
+These error types may be reported in conversation analytics or flow execution logs:
+
+| Error | Code | Recoverable | Description |
+|-------|------|:-----------:|-------------|
+| Agent Not Available | `AGENT_NOT_AVAILABLE` | No | Agent not found, not active, or deleted |
+| Agent Org Mismatch | `AGENT_ORG_MISMATCH` | No | Agent belongs to a different organization (security) |
+| Voice Provider Error | `VOICE_PROVIDER_ERROR` | Yes (3 retries) | STT or TTS API failure |
+| Agent Generation Error | `AGENT_GENERATION_ERROR` | Yes (3 retries) | LLM failed to generate a response |
+| Conversation Timeout | `CONVERSATION_TIMEOUT` | No | Total conversation timeout exceeded |
+| Audio Stream Error | `AUDIO_STREAM_ERROR` | Yes (3 retries) | Audio capture or playback failure |
+| User Hangup | `USER_HANGUP` | No | Caller hung up (expected behavior) |
+| Config Error | `CONFIG_ERROR` | No | Invalid node configuration |
+| Session Init Error | `SESSION_INIT_ERROR` | No | Voice session initialization failed |
+
+**Retry Strategy:** Recoverable errors use exponential backoff: delay = min(1000ms * 2^retryCount, 5000ms). Max 3 retries.
+
+---
+
+## Session Limits

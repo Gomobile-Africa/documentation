@@ -1,48 +1,189 @@
 ---
 title: "Contacts"
-description: "The people you call - the foundation of every campaign"
+description: "Create, update, search, and manage contacts"
 ---
 
-Contacts are the people you call. They're the foundation of every campaign—you can't make calls without them.
+<Info>
+**Base path: `/contact`**
+</Info>
 
-## What contacts store
+## Types
 
-At minimum, a contact needs a phone number. Beyond that, you can store as much or as little information as you need:
+<Accordion title="Type Definitions">
 
-| Field              | Required | Description                            |
-| ------------------ | -------- | -------------------------------------- |
-| `primaryPhone`     | Yes      | The phone number to call               |
-| `firstName`        | No       | First name                             |
-| `lastName`         | No       | Last name                              |
-| `fullName`         | No       | Full name (if you prefer not to split) |
-| `primaryEmail`     | No       | Email address                          |
-| `address`          | No       | Street address                         |
-| `city`             | No       | City                                   |
-| `state`            | No       | State or region                        |
-| `zip`              | No       | Postal code                            |
-| `occupation`       | No       | Job title or occupation                |
-| `preferredChannel` | No       | How they prefer to be contacted        |
-| `gender`           | No       | `male` or `female`                     |
-| `customAttributes` | No       | Any additional data you need           |
+```typescript
+// ============ Enums ============
 
-## Creating contacts
+type Gender = 'male' | 'female';
 
-Add a single contact:
+type SortOrder = 'asc' | 'desc';
+
+// ============ Request Types ============
+
+interface CreateContactRequest {
+  firstName?: string;           // 2-64 characters
+  lastName?: string;            // 1-64 characters
+  fullName?: string;            // 3-64 characters
+  primaryEmail?: string;        // valid email
+  primaryPhone: string;         // 3-20 characters (required)
+  address?: string;             // 3-256 characters
+  city?: string;                // 3-64 characters
+  state?: string;               // 3-64 characters
+  zip?: string;                 // 3-64 characters
+  occupation?: string;          // 3-64 characters
+  preferredChannel?: string;    // 3-64 characters
+  customAttributes?: Record<string, unknown>;
+  gender?: Gender;
+  channels?: string[];
+}
+
+interface UpdateContactRequest {
+  firstName?: string;           // 2-64 characters
+  lastName?: string;            // 1-64 characters
+  fullName?: string;            // 3-64 characters
+  primaryEmail?: string;
+  primaryPhone?: string;        // 3-20 characters
+  address?: string;             // 3-256 characters
+  city?: string;                // 3-64 characters
+  state?: string;               // 3-64 characters
+  zip?: string;                 // 3-64 characters
+  occupation?: string;          // 3-64 characters
+  preferredChannel?: string;    // 3-64 characters
+  customAttributes?: Record<string, unknown>;
+  gender?: Gender;
+  channels?: string[];
+}
+
+interface UpsertContactRequest {
+  data: CreateContactRequest[];
+}
+
+// ============ Query Parameters ============
+
+interface ContactQueryParams {
+  page?: number;                // default: 1, min: 1
+  limit?: number;               // default: 20, max: 100
+  search?: string;              // max 100 characters
+  sortBy?: string;              // firstName, lastName, primaryPhone, primaryEmail, createdAt
+  sortOrder?: SortOrder;        // default: 'desc'
+}
+
+// ============ Response Types ============
+
+interface ContactResponse {
+  id: string;
+  organizationId: string;
+  firstName: string | null;
+  lastName: string | null;
+  fullName: string | null;
+  primaryEmail: string | null;
+  primaryPhone: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  occupation: string | null;
+  preferredChannel: string | null;
+  gender: Gender | null;
+  channels: ContactChannel[];   // JSONB array
+  createdAt: string;            // ISO date
+  updatedAt: string;            // ISO date
+  deletedAt: string | null;     // ISO date (soft delete)
+  createdBy: string | null;     // User UUID
+  updatedBy: string | null;     // User UUID
+  deletedBy: string | null;     // User UUID
+}
+
+interface ContactChannel {
+  type: string;                 // 'phone' | 'email' | 'whatsapp' | etc.
+  value: string;
+  isPrimary: boolean;
+}
+
+interface ContactCustomAttribute {
+  name: string;
+  displayName: string;
+  description: string | null;
+  type: string;
+  value: unknown;
+  isLocked: boolean;
+}
+
+interface ContactWithAttributesResponse extends ContactResponse {
+  customAttributes: ContactCustomAttribute[];
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface ContactListResponse {
+  data: ContactResponse[];
+  meta: PaginationMeta;
+}
+```
+
+</Accordion>
+
+### Get all contacts
+
+**Searchable fields:** firstName, lastName, fullName, primaryPhone, primaryEmail
+
+**Sortable fields:** firstName, lastName, primaryPhone, primaryEmail, createdAt
 
 ```bash
-curl -X POST https://api.gomobile.ma/api/contact \
-  -H "x-api-key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "firstName": "Fatima",
-    "lastName": "Benali",
-    "primaryPhone": "+212612345678",
-    "city": "Casablanca",
-    "customAttributes": {
-      "accountBalance": 1500,
-      "preferredLanguage": "ar"
+curl -X GET https://api.gomobile.ma/api/contact?page=1&limit=20&search=john&sortBy=createdAt&sortOrder=desc \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+      "firstName": "John",
+      "lastName": "Doe",
+      "fullName": "John Doe",
+      "primaryEmail": "john@example.com",
+      "primaryPhone": "+212612345678",
+      "address": "123 Main St",
+      "city": "Casablanca",
+      "state": "Casablanca-Settat",
+      "zip": "20000",
+      "occupation": "Engineer",
+      "preferredChannel": "phone",
+      "gender": "male",
+      "channels": [],
+      "createdAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z"
     }
-  }'
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+---
+
+### Get contact by ID
+
+```bash
+curl -X GET https://api.gomobile.ma/api/contact/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY"
 ```
 
 Response:
@@ -50,143 +191,164 @@ Response:
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "firstName": "Fatima",
-  "lastName": "Benali",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "firstName": "John",
+  "lastName": "Doe",
+  "fullName": "John Doe",
+  "primaryEmail": "john@example.com",
+  "primaryPhone": "+212612345678",
+  "address": "123 Main St",
+  "city": "Casablanca",
+  "state": "Casablanca-Settat",
+  "zip": "20000",
+  "occupation": "Engineer",
+  "preferredChannel": "phone",
+  "gender": "male",
+  "channels": [],
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z",
+  "customAttributes": [
+    {
+      "name": "company_size",
+      "displayName": "Company Size",
+      "description": "Number of employees",
+      "type": "number",
+      "value": 100,
+      "isLocked": false
+    }
+  ]
+}
+```
+
+---
+
+### Create a new contact
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "fullName": "John Doe",
+  "primaryEmail": "john@example.com",
   "primaryPhone": "+212612345678",
   "city": "Casablanca",
+  "gender": "male",
+  "customAttributes": {
+    "age": 30,
+    "interests": ["tech"]
+  }
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "firstName": "John",
+  "lastName": "Doe",
+  "fullName": "John Doe",
+  "primaryEmail": "john@example.com",
+  "primaryPhone": "+212612345678",
+  "address": null,
+  "city": "Casablanca",
+  "state": null,
+  "zip": null,
+  "occupation": null,
+  "preferredChannel": null,
+  "gender": "male",
+  "channels": [],
   "createdAt": "2025-01-15T10:30:00.000Z",
   "updatedAt": "2025-01-15T10:30:00.000Z"
 }
 ```
 
-## Bulk importing contacts
+---
 
-For larger datasets, use the upsert endpoint. It creates new contacts and updates existing ones (matched by phone number):
+### Bulk upsert contacts
 
 ```bash
 curl -X POST https://api.gomobile.ma/api/contact/upsert \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "data": [
-      {
-        "firstName": "Fatima",
-        "lastName": "Benali",
-        "primaryPhone": "+212612345678"
-      },
-      {
-        "firstName": "Ahmed",
-        "lastName": "Tazi",
-        "primaryPhone": "+212612345679"
-      },
-      {
-        "firstName": "Sara",
-        "lastName": "Alami",
-        "primaryPhone": "+212612345680"
-      }
-    ]
-  }'
+  -d '
+{
+  "data": [
+    {
+      "firstName": "John",
+      "lastName": "Doe",
+      "primaryPhone": "+212612345678"
+    },
+    {
+      "firstName": "Jane",
+      "lastName": "Smith",
+      "primaryPhone": "+212612345679"
+    }
+  ]
+}
+'
 ```
 
-This is the recommended way to sync contacts from external systems.
+---
 
-## Searching and filtering
-
-List contacts with pagination and search:
+### Update contact
 
 ```bash
-curl -X GET "https://api.gomobile.ma/api/contact?page=1&limit=20&search=fatima&sortBy=createdAt&sortOrder=desc" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-Searchable fields: `firstName`, `lastName`, `fullName`, `primaryPhone`, `primaryEmail`
-
-Sortable fields: `firstName`, `lastName`, `primaryPhone`, `primaryEmail`, `createdAt`
-
-## Updating contacts
-
-Update specific fields without affecting others:
-
-```bash
-curl -X PUT https://api.gomobile.ma/api/contact/CONTACT_ID \
+curl -X PUT https://api.gomobile.ma/api/contact/550e8400-e29b-41d4-a716-446655440000 \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "city": "Rabat",
-    "customAttributes": {
-      "accountBalance": 2000
-    }
-  }'
+  -d '
+{
+  "firstName": "Jonathan",
+  "occupation": "Senior Engineer"
+}
+'
 ```
 
-## Custom attributes
-
-Standard fields don't cover every use case. Custom attributes let you store any additional data:
+Response:
 
 ```json
 {
-  "customAttributes": {
-    "accountBalance": 1500,
-    "subscriptionTier": "premium",
-    "lastPaymentDate": "2025-01-01",
-    "preferredLanguage": "ar",
-    "region": "north"
-  }
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "firstName": "Jonathan",
+  "lastName": "Doe",
+  "fullName": "John Doe",
+  "primaryEmail": "john@example.com",
+  "primaryPhone": "+212612345678",
+  "address": null,
+  "city": "Casablanca",
+  "state": null,
+  "zip": null,
+  "occupation": "Senior Engineer",
+  "preferredChannel": null,
+  "gender": "male",
+  "channels": [],
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T12:00:00.000Z"
 }
 ```
 
-You can reference custom attributes in your call flows to personalize messages. For example, play back the `accountBalance` value during a payment reminder call.
+---
 
-Before using custom attributes, define them at the organization level. See [Custom Attributes](/features/custom-attributes) for details.
-
-## Phone number format
-
-Gomobile accepts phone numbers in various formats, but we recommend E.164 format for consistency:
-
-```
-+212612345678  ✓ Recommended (E.164)
-0612345678     ✓ Works (local format)
-212612345678   ✓ Works
-```
-
-Numbers are stored as provided. Make sure your DID pool numbers and contact numbers use consistent formats for proper caller ID display.
-
-## Deleting contacts
-
-Contacts are soft-deleted, meaning they're hidden but not permanently removed:
+### Delete contact
 
 ```bash
-curl -X DELETE https://api.gomobile.ma/api/contact/CONTACT_ID \
+curl -X DELETE https://api.gomobile.ma/api/contact/550e8400-e29b-41d4-a716-446655440000 \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
-Soft deletion preserves historical data for reporting. Contact support if you need to permanently remove data for compliance reasons.
+Response:
 
-## Best practices
-
-- **Use consistent phone formats** - Stick to E.164 when possible
-- **Keep data clean** - Regularly deduplicate and update stale records
-- **Use custom attributes wisely** - Define them before importing data
-- **Segment with audiences** - Don't try to filter contacts at call time
-
-## Related concepts
-
-<CardGroup cols="2">
-
-<Card title="Audiences" icon="users" href="/core-concepts/audiences">
-  Grouping contacts for campaigns.
-</Card>
-
-<Card
-  title="Custom Attributes"
-  icon="sliders"
-  href="/features/custom-attributes"
->
-  Defining additional fields.
-</Card>
-
-<Card title="Programs" icon="play" href="/core-concepts/programs">
-  Using contacts in campaigns.
-</Card>
-
-</CardGroup>
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  ...
+}
+```

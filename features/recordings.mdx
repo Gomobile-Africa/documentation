@@ -1,40 +1,72 @@
 ---
 title: "Recordings"
-description: "Manage call recordings captured during flows"
+description: "Access and manage call recordings and transcriptions"
 ---
 
-Recordings are audio files captured during call flow execution using the Collect Audio node. Use this API to list, stream, download, and manage recordings.
+<Info>
+**Base path: `/recordings`**
+</Info>
 
-## How recordings are created
+This API manages call recordings created during flow execution (via `COLLECT_AUDIO` nodes).
 
-Recordings are created when a call flow executes a `collect_audio` node:
+**Related APIs:**
+- [Call Flow API](/features/call-flows) - Flow types including CollectAudioNode
+- [Call Report API](/features/call-reports) - Query call execution details
 
-```json
-{
-  "id": "collect-feedback",
-  "type": "collect_audio",
-  "config": {
-    "maxDuration": 60,
-    "firstSilenceTimeout": 5,
-    "silenceDetection": true,
-    "silenceDuration": 2,
-    "beep": true,
-    "recordingIdVariable": "feedbackRecordingId"
-  },
-  "outputs": {
-    "onComplete": "thank-you"
-  }
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============ Recording Types ============
+
+type RecordingType = 'segment' | 'full_call';
+
+interface Recording {
+  id: string;                    // Recording UUID
+  callId: string;                // Associated call UUID
+  fileId: string;                // S3 file reference UUID
+  recordingType: RecordingType;
+  nodeId: string | null;         // Node that created this recording
+  durationMs: number | null;     // Duration in milliseconds
+  deletedAt: string | null;      // Soft delete timestamp
+  createdAt: string;             // ISO date
+  updatedAt: string;             // ISO date
+}
+
+interface RecordingWithFile extends Recording {
+  file: {
+    id: string;
+    name: string;
+    contentType: string;         // e.g., "audio/wav"
+    fileSize: number;            // Size in bytes
+  };
+}
+
+// ============ Query Parameters ============
+
+interface RecordingListQueryParams {
+  limit?: number;                // default: 20
+  offset?: number;               // default: 0
+}
+
+// ============ Response Types ============
+
+interface MessageResponse {
+  message: string;
 }
 ```
 
-The recording ID is stored in the specified variable and can be used to retrieve the recording later.
+</Accordion>
 
-## Listing recordings
+---
 
-Get all recordings for your organization:
+### Get paginated list of all recordings
 
 ```bash
-curl -X GET "https://api.gomobile.ma/api/recordings?limit=20&offset=0" \
+curl -X GET https://api.gomobile.ma/api/recordings?limit=20&offset=0 \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -49,18 +81,27 @@ Response:
     "recordingType": "segment",
     "nodeId": "collect-audio-1",
     "durationMs": 7920,
-    "createdAt": "2025-01-15T10:30:00.000Z",
-    "updatedAt": "2025-01-15T10:30:00.000Z"
+    "deletedAt": null,
+    "createdAt": "2026-01-02T14:02:10.358Z",
+    "updatedAt": "2026-01-02T14:02:10.358Z"
   }
 ]
 ```
 
-## Recording metadata
+---
 
-Get detailed metadata for a specific recording:
+### Stream recording audio for playback
+
+---
+
+### Download recording as a file attachment
+
+---
+
+### Get recording metadata without audio content
 
 ```bash
-curl -X GET https://api.gomobile.ma/api/recordings/RECORDING_ID/metadata \
+curl -X GET https://api.gomobile.ma/api/recordings/a20ad48b-cb36-4448-86c3-f1b4a56cd02a/metadata \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -74,8 +115,9 @@ Response:
   "recordingType": "segment",
   "nodeId": "collect-audio-1",
   "durationMs": 7920,
-  "createdAt": "2025-01-15T10:30:00.000Z",
-  "updatedAt": "2025-01-15T10:30:00.000Z",
+  "deletedAt": null,
+  "createdAt": "2026-01-02T14:02:10.358Z",
+  "updatedAt": "2026-01-02T14:02:10.358Z",
   "file": {
     "id": "ddf3bb4c-4e0a-4a67-9964-5623527355c2",
     "name": "recording.wav",
@@ -85,44 +127,39 @@ Response:
 }
 ```
 
-## Streaming recordings
+---
 
-Stream a recording for inline playback:
+### Get all recordings for a specific call
 
 ```bash
-curl -X GET https://api.gomobile.ma/api/recordings/RECORDING_ID \
+curl -X GET https://api.gomobile.ma/api/recordings/call/f12d3637-45e8-4088-9712-2c5243da131b \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
-Returns the binary audio stream with `Cache-Control: public, max-age=3600`.
+Response:
 
-## Downloading recordings
-
-Download a recording as a file attachment:
-
-```bash
-curl -X GET https://api.gomobile.ma/api/recordings/RECORDING_ID/download \
-  -H "x-api-key: YOUR_API_KEY" \
-  -o recording.wav
+```json
+[
+  {
+    "id": "a20ad48b-cb36-4448-86c3-f1b4a56cd02a",
+    "callId": "f12d3637-45e8-4088-9712-2c5243da131b",
+    "fileId": "ddf3bb4c-4e0a-4a67-9964-5623527355c2",
+    "recordingType": "segment",
+    "nodeId": "collect-audio-1",
+    "durationMs": 7920,
+    "deletedAt": null,
+    "createdAt": "2026-01-02T14:02:10.358Z",
+    "updatedAt": "2026-01-02T14:02:10.358Z"
+  }
+]
 ```
 
-## Recordings by call
+---
 
-Get all recordings for a specific call:
-
-```bash
-curl -X GET https://api.gomobile.ma/api/recordings/call/CALL_ID \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-Useful when a call flow has multiple recording nodes.
-
-## Deleting recordings
-
-Soft delete a recording:
+### Soft delete a recording
 
 ```bash
-curl -X DELETE https://api.gomobile.ma/api/recordings/RECORDING_ID \
+curl -X DELETE https://api.gomobile.ma/api/recordings/a20ad48b-cb36-4448-86c3-f1b4a56cd02a \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -134,74 +171,25 @@ Response:
 }
 ```
 
-<Note>
-Recordings are soft-deleted (marked with `deletedAt`) rather than permanently removed. Soft-deleted recordings are excluded from all API queries.
-</Note>
+---
 
-## Recording types
+## Usage Notes
 
-| Type | Description |
-|------|-------------|
-| `segment` | Recording from a specific node in the flow |
-| `full_call` | Complete call recording (if enabled) |
+### Recording ID from Flow
 
-## Audio format
+When using `COLLECT_AUDIO` node in a flow, the recording ID is stored in the variable specified by `recordingIdVariable`. This ID can be used to:
+
+1. Stream/download the recording via this API
+2. Reference the recording in call reports
+
+### Soft Delete
+
+Recordings are soft-deleted (marked with `deletedAt` timestamp) rather than permanently removed. Soft-deleted recordings are excluded from all API queries.
+
+### Audio Format
 
 All recordings are stored as WAV files:
-
-| Property | Value |
-|----------|-------|
-| Sample rate | 8kHz |
-| Bit depth | 16-bit |
-| Channels | Mono (1) |
-| Content-Type | `audio/wav` |
-
-## Using recordings in flows
-
-### Storing the recording ID
-
-Configure the `collect_audio` node to store the recording ID:
-
-```json
-{
-  "config": {
-    "recordingIdVariable": "customerFeedback"
-  }
-}
-```
-
-### With transcription
-
-Enable transcription to get text from the recording:
-
-```json
-{
-  "config": {
-    "transcription": true,
-    "languages": ["ar-MA", "fr-FR"],
-    "transcriptionVariable": "feedbackText"
-  }
-}
-```
-
-The transcription is stored in the specified variable for use in conditions or later processing.
-
-## Retention and storage
-
-- Recordings are stored securely in cloud storage
-- Soft-deleted recordings are excluded from queries but retained for compliance
-- Contact support for information about retention policies
-
-## Related topics
-
-<CardGroup cols="2">
-
-<Card title="Call Flows" icon="diagram-project" href="/features/call-flows">
-  Using Collect Audio nodes.
-</Card>
-
-<Card title="Call Reports" icon="chart-line" href="/features/call-reports">
-  Viewing call details.
-</Card>
-
-</CardGroup>
+- Sample rate: 8kHz
+- Bit depth: 16-bit
+- Channels: Mono (1)
+- Content-Type: `audio/wav`

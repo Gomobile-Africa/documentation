@@ -1,534 +1,968 @@
 ---
 title: "Call Flows"
-description: "Detailed reference for building call flows with nodes"
+description: "Define call logic with nodes, branches, and conditions"
 ---
 
-Call flows are the heart of Gomobile. They define exactly what happens during each call—from the initial dial to the final hangup.
+This module contains flow types and flow management APIs for the telephony system.
 
-## Flow structure
+**Related APIs:**
+- [Call Request API](/features/ad-hoc-calls) - Request and manage individual calls
+- [Call Report API](/features/call-reports) - Query call reports and execution details
+- [Recording API](/features/recordings) - Manage call recordings
+- [Agent Studio API](./agent-studio) - Create and manage AI agents for CONNECT_AGENT node
 
-Every flow has:
+---
 
-- A **start node** - Where execution begins
-- **Intermediate nodes** - Actions like playing audio or collecting input
-- **Terminal nodes** - Where the call ends (hangup)
-- **Connections** - Links between nodes based on outcomes
+## Flow Types (Core)
 
-## Node reference
+These types are the foundation of the flow system. The frontend needs these to build flow editors and execute flows.
 
-### Dial Node
+```typescript
+// ============================================
+// BRANDED TYPES
+// ============================================
 
-Initiates an outbound call to the contact.
+type FlowId = string & { readonly __brand: 'FlowId' };
+type NodeId = string & { readonly __brand: 'NodeId' };
+
+// ============================================
+// VARIABLE SYSTEM
+// ============================================
+
+enum VariableType {
+  FLOW_VARIABLE = 'flow_variable',
+  CUSTOM_ATTRIBUTE = 'custom_attribute',
+  CONTACT_FIELD = 'contact_field',
+  SYSTEM_VARIABLE = 'system_variable',
+}
+
+interface VariableReference {
+  type: VariableType;
+  name: string;
+}
+
+type VariableValue = string | number | boolean | null;
+
+type FlowVariables = Record<string, VariableValue>;
+
+// System variables available during execution
+const SYSTEM_VARIABLES = {
+  CALL_ID: 'sys.callId',
+  CALL_STATUS: 'sys.callStatus',
+  CALL_DIRECTION: 'sys.callDirection',
+  ANSWERED_BY: 'sys.answeredBy',
+  CONTACT_ID: 'sys.contactId',
+  CONTACT_PHONE: 'sys.contactPhone',
+  CONTACT_NAME: 'sys.contactName',
+  ORGANIZATION_ID: 'sys.organizationId',
+  PROGRAM_ID: 'sys.programId',
+};
+
+// ============================================
+// VALUE SOURCE (Dynamic Value Resolution)
+// ============================================
+
+type ValueSource =
+  | FlowVariableReference
+  | CustomAttributeReference
+  | ContactFieldReference;
+
+interface FlowVariableReference {
+  source: 'variable';
+  variableName: string;
+}
+
+interface CustomAttributeReference {
+  source: 'customAttribute';
+  attributeName: string;
+}
+
+interface ContactFieldReference {
+  source: 'contactField';
+  field: ContactField;
+}
+
+type ContactField =
+  | 'phone'
+  | 'email'
+  | 'firstName'
+  | 'lastName'
+  | 'fullName'
+  | 'address'
+  | 'city'
+  | 'state'
+  | 'zip'
+  | 'occupation'
+  | 'gender'
+  | 'preferredChannel';
+
+// ============================================
+// NODE TYPES ENUM
+// ============================================
+
+enum NodeType {
+  DIAL = 'dial',           // Initiates outbound call
+  ANSWER = 'answer',       // Answers inbound call (NOT needed after DIAL)
+  HANGUP = 'hangup',       // Terminates call (terminal node)
+  PLAY = 'play',           // Plays audio
+  COLLECT_AUDIO = 'collect_audio', // Records audio with transcription
+  DTMF = 'dtmf',           // Collects digit input
+  CONDITION = 'condition', // Branches based on expression
+  SET_VARIABLE = 'set_variable', // Sets a variable
+  SAY = 'say',             // Text-to-speech with template variables
+  SMS = 'sms',             // Send SMS to contact
+  UPDATE_CONTACT = 'update_contact', // Update contact custom attribute
+  CONNECT_AGENT = 'connect_agent', // Connect caller to AI agent (Agent Studio)
+}
+
+// ============================================
+// BASE NODE
+// ============================================
+
+interface BaseNode {
+  id: NodeId;
+  type: NodeType;
+  label?: string;
+  description?: string;
+}
+
+// ============================================
+// DIAL NODE
+// ============================================
+
+interface DialNode extends BaseNode {
+  type: NodeType.DIAL;
+  config: {
+    timeout?: number;      // Default: 30000ms
+    enableAMD?: boolean;   // Default: true (Answering Machine Detection)
+  };
+  outputs: {
+    onAnswer: NodeId;      // Human detected or AMD disabled
+    onVoicemail?: NodeId;  // Machine detected (only if enableAMD=true)
+    onNoAnswer?: NodeId;   // Timeout
+    onBusy?: NodeId;       // Busy signal
+    onRejected?: NodeId;   // User hangup during ring
+    onError?: NodeId;      // System failure
+    default?: NodeId;      // Fallback
+  };
+}
+
+// ============================================
+// ANSWER NODE (Inbound calls only)
+// ============================================
+
+interface AnswerNode extends BaseNode {
+  type: NodeType.ANSWER;
+  config: Record<string, never>;  // No config needed
+  outputs: {
+    onComplete: NodeId;
+    onError?: NodeId;
+    default?: NodeId;
+  };
+}
+
+// ============================================
+// PLAY NODE
+// ============================================
+
+type SoundLanguage = 'ar' | 'fr';
+type NumberMode = 'full' | 'twoByTwo';
+type DateMode = 'dayMonthYear' | 'monthAsWord';
+
+type AudioItem = AudioFileItem | NumberItem | DateItem | WordItem;
+
+interface AudioFileItem {
+  type: 'audioFile';
+  audioId: string | ValueSource;
+}
+
+interface NumberItem {
+  type: 'number';
+  value: number | ValueSource;
+  mode: NumberMode;
+  language: SoundLanguage;
+  dictionaryId?: string | null;  // null = system dictionary
+}
+
+interface DateItem {
+  type: 'date';
+  value: string | ValueSource;   // DD/MM/YYYY format
+  mode: DateMode;
+  language: SoundLanguage;
+  dictionaryId?: string | null;
+}
+
+interface WordItem {
+  type: 'word';
+  value: string | ValueSource;   // Dictionary key
+  dictionaryId: string | null;
+  language: SoundLanguage;
+}
+
+interface BeepConfig {
+  enabled: boolean;
+  key?: string;  // Dictionary key for beep sound
+}
+
+interface PlayNode extends BaseNode {
+  type: NodeType.PLAY;
+  config: {
+    audioItems: AudioItem[];
+    beepAfter?: BeepConfig;
+    allowBargeIn?: boolean;      // Enable DTMF interruption
+    bargeInDtmfNodeId?: NodeId;  // DTMF node to jump to on barge-in
+  };
+  outputs: {
+    onComplete: NodeId;
+    onError?: NodeId;
+    default?: NodeId;
+  };
+}
+
+// ============================================
+// DTMF NODE
+// ============================================
+
+enum DTMFMode {
+  SINGLE_DIGIT = 'single_digit',
+  MULTI_DIGIT = 'multi_digit',
+}
+
+interface DTMFNode extends BaseNode {
+  type: NodeType.DTMF;
+  config: {
+    mode: DTMFMode;
+    variable: string;            // Where to store input
+    timeout: number;             // Overall timeout
+    skipIfAlreadySet?: boolean;  // Skip if variable already has value (from barge-in)
+    singleDigitConfig?: {
+      allowedDigits?: string[];  // Restrict to specific digits
+    };
+    multiDigitConfig?: {
+      minDigits: number;
+      maxDigits: number;
+      terminators?: string[];    // Default: ['#']
+      interDigitTimeout?: number; // Default: 3000ms
+    };
+    retry?: {
+      maxRetries: number;
+      invalidAudioId?: string;   // Play on invalid input
+      timeoutAudioId?: string;   // Play on timeout
+    };
+  };
+  outputs: {
+    branches?: Record<string, NodeId>;  // Branch by digit (e.g., "1" -> nodeId)
+    onComplete?: NodeId;         // Collection succeeded (if not using branches)
+    onTimeout?: NodeId;          // Timeout after retries
+    onInvalid?: NodeId;          // Invalid input after retries
+    onMaxRetries?: NodeId;
+    onError?: NodeId;
+    default?: NodeId;
+  };
+}
+
+// ============================================
+// COLLECT_AUDIO NODE
+// ============================================
+
+type TranscriptionLanguage = 'ar-MA' | 'fr-FR' | 'en-US' | 'auto';
+
+interface CollectAudioNode extends BaseNode {
+  type: NodeType.COLLECT_AUDIO;
+  config: {
+    // Recording settings
+    maxDuration: number;              // Max recording duration in seconds
+    firstSilenceTimeout: number;      // Time in seconds to wait for user to start speaking
+    silenceDetection?: boolean;       // Stop on silence (default: true)
+    silenceDuration?: number;         // Silence duration to stop in seconds (default: 2)
+    beep?: boolean;                   // Play beep before recording (default: false)
+
+    // Retry settings
+    maxRetry?: number;                // Max retry attempts if no speech (default: 0)
+    fallbackAudio?: AudioItem;        // Audio to play when no speech detected, before retry
+
+    // Variable to store recording ID
+    recordingIdVariable: string;      // Variable name to store the recording ID
+
+    // Transcription settings (optional)
+    transcription?: boolean;          // Enable speech-to-text (default: false)
+    languages?: TranscriptionLanguage[]; // Languages for transcription (default: ['auto'])
+    transcriptionVariable?: string;   // Variable name to store transcription text
+  };
+  outputs: {
+    onComplete: NodeId;               // Recording completed successfully (user spoke)
+    onMaxDuration?: NodeId;           // Max duration reached (user kept speaking)
+    onNoSpeech?: NodeId;              // No speech detected after retries
+    onError?: NodeId;                 // System error
+    default?: NodeId;                 // Fallback
+  };
+}
+
+// ============================================
+// CONDITION NODE
+// ============================================
+
+enum ConditionOperator {
+  EQ = 'eq',
+  NEQ = 'neq',
+  GT = 'gt',
+  LT = 'lt',
+  GTE = 'gte',
+  LTE = 'lte',
+  CONTAINS = 'contains',
+  STARTS_WITH = 'startsWith',
+  ENDS_WITH = 'endsWith',
+}
+
+type ConditionExpression = SimpleCondition | AndCondition | OrCondition;
+
+interface SimpleCondition {
+  type: 'simple';
+  variable: VariableReference;
+  operator: ConditionOperator;
+  value: VariableValue | VariableReference;
+}
+
+interface AndCondition {
+  type: 'and';
+  conditions: ConditionExpression[];
+}
+
+interface OrCondition {
+  type: 'or';
+  conditions: ConditionExpression[];
+}
+
+interface ConditionNode extends BaseNode {
+  type: NodeType.CONDITION;
+  config: {
+    expression: ConditionExpression;
+  };
+  outputs: {
+    onTrue: NodeId;
+    onFalse: NodeId;
+    onError?: NodeId;
+  };
+}
+
+// ============================================
+// SET_VARIABLE NODE
+// ============================================
+
+/**
+ * SET_VARIABLE sets a flow variable to a static value or variable reference.
+ */
+interface SetVariableNode extends BaseNode {
+  type: NodeType.SET_VARIABLE;
+  config: {
+    variable: string;
+    value: VariableValue | VariableReference;
+  };
+  outputs: {
+    onComplete: NodeId;
+    onError?: NodeId;
+    default?: NodeId;
+  };
+}
+
+// ============================================
+// SAY NODE - Text-to-Speech
+// ============================================
+
+/**
+ * Language codes for TTS synthesis.
+ */
+type TTSLanguage =
+  | 'ar-MA'  // Moroccan Darija (primary)
+  | 'ar'     // Modern Standard Arabic
+  | 'fr'     // French
+  | 'en';    // English
+
+type VoiceGender = 'male' | 'female';
+type VoiceTone = 'neutral' | 'friendly' | 'formal';
+
+/**
+ * SAY Node - Text-to-speech with template variable support.
+ *
+ * Template syntax: {{ $source.path }}
+ * Sources:
+ * - $contact.fieldName (contact fields and custom attributes)
+ * - $variables.varName (flow variables)
+ * - $call.from / $call.to / $call.direction (call info)
+ *
+ * @example "Hello {{ $contact.firstName }}, your balance is {{ $variables.balance }} dirhams."
+ */
+interface SayNode extends BaseNode {
+  type: NodeType.SAY;
+  config: {
+    /**
+     * Template text with {{ $source.path }} placeholders.
+     * Missing variables cause node failure (no silent fallback).
+     */
+    text: string;
+
+    /**
+     * Language/dialect for TTS.
+     * Determines voice selection and pronunciation.
+     */
+    language: TTSLanguage;
+
+    /**
+     * Voice gender. Default: 'female'
+     */
+    gender?: VoiceGender;
+
+    /**
+     * Voice tone/style. Default: 'neutral'
+     */
+    tone?: VoiceTone;
+
+    /**
+     * Allow DTMF barge-in (same as PlayNode).
+     */
+    allowBargeIn?: boolean;
+    bargeInDtmfNodeId?: NodeId;
+  };
+  outputs: {
+    onComplete: NodeId;
+    onError?: NodeId;
+    default?: NodeId;
+  };
+}
+
+// ============================================
+// SMS NODE - Send SMS during call flow
+// ============================================
+
+/**
+ * SMS Node - Send SMS to contact during call flow execution.
+ *
+ * Uses same template syntax as SAY node: {{ $source.path }}
+ * Sources:
+ * - $contact.fieldName (contact fields and custom attributes)
+ * - $variables.varName (flow variables)
+ * - $call.from / $call.to / $call.direction (call info)
+ *
+ * Cost: 1.887 credits per SMS (billed at end of call)
+ *
+ * @example messageTemplate: "Your confirmation code is {{ $variables.code }}"
+ */
+interface SmsNode extends BaseNode {
+  type: NodeType.SMS;
+  config: {
+    /**
+     * Message template with {{ $source.path }} placeholders.
+     * Missing variables cause node failure (no silent fallback).
+     */
+    messageTemplate: string;
+
+    /**
+     * Sender ID for the SMS (phone number or alphanumeric).
+     * Can also use template: "{{ $variables.senderId }}"
+     */
+    senderId: string;
+  };
+  outputs: {
+    onComplete: NodeId;    // SMS sent successfully
+    onError?: NodeId;      // SMS sending failed (non-fatal, call continues)
+    default?: NodeId;      // Fallback
+  };
+}
+
+// ============================================
+// UPDATE_CONTACT NODE - Update contact custom attribute
+// ============================================
+
+/**
+ * UPDATE_CONTACT Node - Update a contact's custom attribute during call flow.
+ *
+ * Uses same template syntax as SAY/SMS nodes for dynamic values: {{ $source.path }}
+ * Sources:
+ * - $contact.fieldName (contact fields and custom attributes)
+ * - $variables.varName (flow variables)
+ * - $call.from / $call.to / $call.direction (call info)
+ *
+ * Value types:
+ * - Static values: string, number, or boolean (e.g., "gold", 100, true)
+ * - Template values: "{{ $variables.score }}" (resolved at runtime)
+ *
+ * Cost: Free (0 credits)
+ *
+ * @example
+ * // Static value
+ * { attributeName: "tier", value: "gold" }
+ *
+ * // From flow variable
+ * { attributeName: "credit_score", value: "{{ $variables.calculated_score }}" }
+ *
+ * // From another contact attribute
+ * { attributeName: "previous_tier", value: "{{ $contact.tier }}" }
+ */
+interface UpdateContactNode extends BaseNode {
+  type: NodeType.UPDATE_CONTACT;
+  config: {
+    /**
+     * Name of the custom attribute to update.
+     * Must be a valid custom attribute defined for the organization.
+     */
+    attributeName: string;
+
+    /**
+     * Value to set. Can be:
+     * - Static: string, number, or boolean
+     * - Template: "{{ $source.path }}" for dynamic resolution
+     *
+     * Type must match the attribute's defined type (TEXT, NUMBER, BOOLEAN).
+     */
+    value: string | number | boolean;
+  };
+  outputs: {
+    onComplete: NodeId;    // Update successful
+    onError?: NodeId;      // Update failed (non-fatal, call continues)
+    default?: NodeId;      // Fallback
+  };
+}
+
+// ============================================
+// CONNECT_AGENT NODE - AI Voice Conversation
+// ============================================
+
+/**
+ * Voice configuration is now defined at the agent level (AgentVoiceConfig)
+ * and no longer overridden per-node. See Agent Studio API for details.
+ *
+ * Pipeline modes:
+ * - 'batch': Deepgram Nova-3 (STT) → LLM → ElevenLabs Flash v2.5 (TTS)
+ * - 'streaming': Same STT/TTS providers with streaming LLM + sentence-chunked TTS
+ * - 'sts' (future): Speech-to-speech via OpenAI Realtime or Gemini Live
+ */
+
+/**
+ * Context variable mapping - passes flow variables to agent context.
+ */
+interface ConnectAgentContextVariable {
+  /** Flow variable name to read from */
+  flowVariable: string;
+  /** Key name in agent context */
+  contextKey: string;
+  /** Optional description for agent (included in context) */
+  description?: string;
+}
+
+/**
+ * Variable extraction configuration.
+ * Extracts data from conversation to flow variables.
+ */
+interface ConnectAgentExtractVariable {
+  /** Variable name to store extracted value */
+  variableName: string;
+  /** Extraction method */
+  method: 'last_response' | 'pattern' | 'semantic';
+  /** Regex pattern (required for 'pattern' method) */
+  pattern?: string;
+  /** LLM prompt (required for 'semantic' method) - FUTURE */
+  prompt?: string;
+}
+
+/**
+ * Exit reason from connect-agent conversation.
+ */
+type ConnectAgentExitReason =
+  | 'completed'           // Agent signaled completion (phrase_match mode: [COMPLETE])
+  | 'function_call_exit'  // Agent called end_conversation tool (function_call mode)
+  | 'exit_phrase'         // User said an exit phrase
+  | 'max_turns'           // Maximum turns reached
+  | 'timeout'             // Conversation or turn timeout
+  | 'user_hangup'         // User hung up
+  | 'error';              // System/agent error
+
+/**
+ * CONNECT_AGENT Node - Connects caller to an AI agent.
+ *
+ * Flow:
+ * 1. Load agent config from Agent Studio
+ * 2. Create conversation with Mastra
+ * 3. Play initial greeting (if configured)
+ * 4. Loop: Listen (STT) → Agent Response (LLM) → Speak (TTS)
+ * 5. Check exit conditions after each turn
+ * 6. Extract variables and finalize (billing, persistence)
+ *
+ * Exit conditions:
+ * - completed: Agent signals completion (phrase_match mode: response contains [COMPLETE])
+ * - function_call_exit: Agent called end_conversation tool (function_call mode)
+ * - exit_phrase: User says a configured exit phrase
+ * - max_turns: Maximum turn limit reached
+ * - timeout: Conversation or turn timeout
+ * - user_hangup: User hung up the call
+ * - error: System/agent error occurred
+ *
+ * See: Agent Studio API for agent configuration.
+ *
+ * @example
+ * {
+ *   "id": "node_agent_1",
+ *   "type": "connect_agent",
+ *   "config": {
+ *     "agentId": "550e8400-e29b-41d4-a716-446655440000",
+ *     "maxTurns": 10,
+ *     "conversationTimeout": 300000,
+ *     "turnTimeout": 10000,
+ *     "exitPhrases": ["goodbye", "bye"],
+ *     "exitMode": "function_call",
+ *     "initialMessage": "Hello! How can I help you today?",
+ *     "contextVariables": [
+ *       { "flowVariable": "customerName", "contextKey": "customer_name" }
+ *     ],
+ *     "extractVariables": [
+ *       { "variableName": "intent", "method": "last_response" }
+ *     ]
+ *   },
+ *   "outputs": {
+ *     "onComplete": "node_next",
+ *     "onExitPhrase": "node_goodbye",
+ *     "onHangup": "node_end"
+ *   }
+ * }
+ */
+interface ConnectAgentNode extends BaseNode {
+  type: NodeType.CONNECT_AGENT;
+  config: {
+    /**
+     * ID of the agent to connect (from Agent Studio).
+     * Agent must be active and belong to the same organization.
+     */
+    agentId: string;
+
+    /**
+     * Maximum conversation turns before auto-exit.
+     * Default: 10, Range: 1-50
+     */
+    maxTurns?: number;
+
+    /**
+     * Total conversation timeout in milliseconds.
+     * Default: 300000 (5 minutes), Range: 30000-600000
+     */
+    conversationTimeout?: number;
+
+    /**
+     * Per-turn silence timeout in milliseconds.
+     * How long to wait for user to speak before timing out.
+     * Default: 10000 (10 seconds), Range: 3000-30000
+     */
+    turnTimeout?: number;
+
+    /**
+     * Phrases that trigger immediate exit.
+     * Case-insensitive partial match against user transcripts.
+     * Default: ['goodbye', 'bye', 'thank you goodbye']
+     */
+    exitPhrases?: string[];
+
+    /**
+     * Flow variables to pass as agent context.
+     * Available to agent in system prompt context.
+     */
+    contextVariables?: ConnectAgentContextVariable[];
+
+    /**
+     * Variables to extract from conversation.
+     * Extracted after conversation ends, before finalization.
+     */
+    extractVariables?: ConnectAgentExtractVariable[];
+
+    /**
+     * Initial message for agent to speak.
+     * Played before first user turn (greeting message).
+     */
+    initialMessage?: string;
+
+    /**
+     * Whether to record the full conversation audio.
+     * Default: false (FUTURE FEATURE)
+     */
+    recordConversation?: boolean;
+
+    /**
+     * Exit detection mode.
+     * - 'function_call': LLM calls end_conversation tool to exit (default).
+     *   Phrase matching still works as fallback. [COMPLETE] matching is disabled.
+     * - 'phrase_match': Legacy string matching. No tools injected.
+     *   Exit phrases + [COMPLETE] string matching.
+     * Default: 'function_call'
+     */
+    exitMode?: 'function_call' | 'phrase_match';
+  };
+  outputs: {
+    /** Normal completion path (agent completed or function call exit) */
+    onComplete: NodeId;
+    /** Exit phrase detected path */
+    onExitPhrase?: NodeId;
+    /** Max turns reached path */
+    onMaxTurns?: NodeId;
+    /** Timeout path (conversation or turn timeout) */
+    onTimeout?: NodeId;
+    /** User hangup path */
+    onHangup?: NodeId;
+    /** Error path (system/agent failures) */
+    onError?: NodeId;
+    /** Fallback for unhandled cases */
+    default?: NodeId;
+  };
+}
+
+// ============================================
+// HANGUP NODE (Terminal)
+// ============================================
+
+interface HangupNode extends BaseNode {
+  type: NodeType.HANGUP;
+  config: {
+    /** Optional reason for audit trail */
+    reason?: string;
+  };
+  outputs: never;  // Terminal node - no outputs
+}
+
+// ============================================
+// FLOW NODE (Discriminated Union)
+// ============================================
+
+type FlowNode =
+  | DialNode
+  | AnswerNode
+  | PlayNode
+  | CollectAudioNode
+  | DTMFNode
+  | ConditionNode
+  | SetVariableNode
+  | SayNode
+  | SmsNode
+  | UpdateContactNode
+  | ConnectAgentNode
+  | HangupNode;
+
+// ============================================
+// FLOW DEFINITION
+// ============================================
+
+interface FlowGraph {
+  nodes: FlowNode[];
+  startNodeId: NodeId;
+}
+
+interface FlowMetadata {
+  tags?: string[];
+  category?: string;
+  author?: string;
+  version?: string;
+  [key: string]: unknown;
+}
+
+interface VariableSchema {
+  [key: string]: {
+    type: 'string' | 'number' | 'boolean';
+    required?: boolean;
+    defaultValue?: VariableValue;
+    description?: string;
+  };
+}
+
+interface FlowDefinition {
+  id: FlowId;
+  organizationId: string;
+  name: string;
+  description?: string;
+  version: number;
+  metadata: FlowMetadata;
+  graph: FlowGraph;
+  variableSchema?: VariableSchema;
+  createdAt: string;   // ISO date
+  updatedAt: string;   // ISO date
+}
+
+// ============================================
+// EXECUTION TYPES
+// ============================================
+
+enum FlowExecutionOutcome {
+  COMPLETED = 'completed',
+  USER_HANGUP = 'user_hangup',
+  FAILED = 'failed',
+  TIMEOUT = 'timeout',
+  NO_ANSWER = 'no_answer',
+  BUSY = 'busy',
+  REJECTED = 'rejected',
+  CANCELLED = 'cancelled',
+}
+
+interface FlowExecutionResult {
+  callId: string;
+  flowId: string;
+  outcome: FlowExecutionOutcome;
+  outcomeReason: string;
+  finalVariables: FlowVariables;
+  error?: FlowExecutionErrorDetails;
+  sessionSnapshot: CallSessionSnapshot;
+  timing: ExecutionTiming;
+}
+
+interface FlowExecutionErrorDetails {
+  type: string;
+  message: string;
+  code?: string;
+  nodeId?: string;
+  stack?: string;
+}
+
+interface CallSessionSnapshot {
+  callId: string;
+  status: string;
+  direction: string;
+  createdAt: string;
+  answeredAt?: string;
+  terminatedAt?: string;
+  durationMs?: number;
+}
+
+interface ExecutionTiming {
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  nodeExecutionCount: number;
+}
+
+// ============================================
+// VALIDATION TYPES
+// ============================================
+
+interface ValidationError {
+  field: string;
+  message: string;
+  code?: string;
+}
+
+interface ValidateFlowResponse {
+  valid: boolean;
+  errors: ValidationError[];
+}
+```
+
+---
+
+## Flows API
+
+<Info>
+**Base path: `/flows`**
+</Info>
+
+### Request/Response Types
+
+```typescript
+interface CreateFlowInput {
+  name: string;
+  description?: string;
+  graph: FlowGraph;
+  metadata?: FlowMetadata;
+  variableSchema?: VariableSchema;
+}
+
+interface UpdateFlowInput {
+  name?: string;
+  description?: string;
+  graph?: FlowGraph;
+  metadata?: FlowMetadata;
+  variableSchema?: VariableSchema;
+}
+
+interface ExecuteFlowRequest {
+  flowId: string;
+  contactId: string;
+  fromPhone: string;
+  initialVariables?: Record<string, string | number | boolean | null>;
+}
+
+// Response is FlowExecutionResult (see above)
+```
+
+### Endpoints
+
+#### Create a new flow
+
+---
+
+#### Get all flows
+
+---
+
+#### Get flow by ID
+
+---
+
+#### Get latest version of a flow by name
+
+---
+
+#### Update an existing flow
+
+---
+
+#### Delete a flow
+
+---
+
+---
+
+#### Validate a flow without saving
+
+---
+
+#### Execute a flow
+
+```bash
+curl -X POST https://api.gomobile.ma/api/flows/execute \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "flowId": "flow_789",
+  "contactId": "contact_123",
+  "fromPhone": "+212987654321",
+  "initialVariables": {
+    "campaign": "winter_promo"
+  }
+}
+'
+```
+
+Response:
 
 ```json
 {
-  "id": "dial-1",
-  "type": "dial",
-  "label": "Call Customer",
-  "config": {
-    "timeout": 30000,
-    "enableAMD": true
+  "callId": "call_abc123",
+  "flowId": "flow_789",
+  "outcome": "COMPLETED",
+  "outcomeReason": "Flow completed successfully",
+  "finalVariables": {
+    "sys.callId": "call_abc123",
+    "sys.callDirection": "outbound",
+    "campaign": "winter_promo",
+    "dtmf.response": "1"
   },
-  "outputs": {
-    "onAnswer": "play-greeting",
-    "onVoicemail": "play-vm-message",
-    "onNoAnswer": "hangup-na",
-    "onBusy": "hangup-busy",
-    "onRejected": "hangup-rejected",
-    "onError": "hangup-error"
-  }
-}
-```
-
-| Config      | Type    | Default | Description                        |
-| ----------- | ------- | ------- | ---------------------------------- |
-| `timeout`   | number  | 30000   | Ring timeout in milliseconds       |
-| `enableAMD` | boolean | true    | Enable answering machine detection |
-
-| Output        | Trigger                          |
-| ------------- | -------------------------------- |
-| `onAnswer`    | Human answered (or AMD disabled) |
-| `onVoicemail` | Machine detected (AMD enabled)   |
-| `onNoAnswer`  | Ring timeout reached             |
-| `onBusy`      | Busy signal                      |
-| `onRejected`  | User rejected during ring        |
-| `onError`     | System error                     |
-
-### Play Node
-
-Plays audio to the recipient.
-
-```json
-{
-  "id": "play-greeting",
-  "type": "play",
-  "label": "Welcome Message",
-  "config": {
-    "audioItems": [
-      { "type": "audioFile", "audioId": "welcome-audio-id" },
-      {
-        "type": "number",
-        "value": {
-          "source": "customAttribute",
-          "attributeName": "accountBalance"
-        },
-        "mode": "full",
-        "language": "ar"
-      }
-    ],
-    "allowBargeIn": true,
-    "bargeInDtmfNodeId": "dtmf-collect"
+  "sessionSnapshot": {
+    "callId": "call_abc123",
+    "status": "terminated",
+    "direction": "outbound",
+    "createdAt": "2025-01-15T10:30:00.000Z",
+    "answeredAt": "2025-01-15T10:30:05.000Z",
+    "terminatedAt": "2025-01-15T10:31:30.000Z",
+    "durationMs": 85000
   },
-  "outputs": {
-    "onComplete": "next-node",
-    "onError": "hangup-error"
+  "timing": {
+    "startedAt": "2025-01-15T10:30:00.000Z",
+    "completedAt": "2025-01-15T10:31:30.000Z",
+    "durationMs": 90000,
+    "nodeExecutionCount": 5
   }
 }
 ```
-
-Audio item types:
-
-| Type        | Purpose                 | Example           |
-| ----------- | ----------------------- | ----------------- |
-| `audioFile` | Pre-recorded audio      | Welcome messages  |
-| `number`    | Dynamic number playback | Account balances  |
-| `date`      | Dynamic date playback   | Appointment dates |
-| `word`      | Dictionary word lookup  | Custom vocabulary |
-
-### DTMF Node
-
-Collects keypad input from the recipient.
-
-```json
-{
-  "id": "collect-choice",
-  "type": "dtmf",
-  "label": "Get User Choice",
-  "config": {
-    "mode": "single_digit",
-    "variable": "userChoice",
-    "timeout": 10000,
-    "singleDigitConfig": {
-      "allowedDigits": ["1", "2", "3"]
-    },
-    "retry": {
-      "maxRetries": 2,
-      "invalidAudioId": "invalid-choice-audio",
-      "timeoutAudioId": "timeout-audio"
-    }
-  },
-  "outputs": {
-    "branches": {
-      "1": "option-one",
-      "2": "option-two",
-      "3": "option-three"
-    },
-    "onSuccess": "next-node",
-    "onTimeout": "hangup-timeout",
-    "onInvalid": "hangup-invalid",
-    "onMaxRetries": "hangup-max-retries",
-    "onError": "hangup-error",
-    "default": "hangup-fallback"
-  }
-}
-```
-
-Modes:
-
-| Mode           | Use case                              |
-| -------------- | ------------------------------------- |
-| `single_digit` | Menu selections (press 1, 2, 3...)    |
-| `multi_digit`  | Numeric input (account numbers, PINs) |
-
-Multi-digit configuration:
-
-```json
-{
-  "mode": "multi_digit",
-  "multiDigitConfig": {
-    "minDigits": 4,
-    "maxDigits": 10,
-    "terminators": ["#"],
-    "interDigitTimeout": 3000
-  }
-}
-```
-
-### Record Node
-
-Records the recipient's voice.
-
-```json
-{
-  "id": "record-feedback",
-  "type": "record",
-  "label": "Record Feedback",
-  "config": {
-    "variable": "feedbackRecordingId",
-    "maxDurationMs": 60000,
-    "silenceThresholdMs": 3000,
-    "beep": true
-  },
-  "outputs": {
-    "onComplete": "play-thank-you",
-    "onTimeout": "hangup-timeout",
-    "onError": "hangup-error"
-  }
-}
-```
-
-The recording ID is stored in the specified variable for later retrieval.
-
-### Condition Node
-
-Branches based on variable values.
-
-```json
-{
-  "id": "check-balance",
-  "type": "condition",
-  "label": "Check If Overdue",
-  "config": {
-    "expression": {
-      "type": "simple",
-      "variable": {
-        "type": "custom_attribute",
-        "name": "daysOverdue"
-      },
-      "operator": "gt",
-      "value": 30
-    }
-  },
-  "outputs": {
-    "onTrue": "play-urgent-message",
-    "onFalse": "play-reminder-message",
-    "onError": "hangup-error"
-  }
-}
-```
-
-Operators:
-
-| Operator     | Meaning               |
-| ------------ | --------------------- |
-| `eq`         | Equals                |
-| `neq`        | Not equals            |
-| `gt`         | Greater than          |
-| `lt`         | Less than             |
-| `gte`        | Greater than or equal |
-| `lte`        | Less than or equal    |
-| `contains`   | String contains       |
-| `startsWith` | String starts with    |
-| `endsWith`   | String ends with      |
-
-Complex conditions with AND/OR:
-
-```json
-{
-  "expression": {
-    "type": "and",
-    "conditions": [
-      {
-        "type": "simple",
-        "variable": { "type": "custom_attribute", "name": "balance" },
-        "operator": "gt",
-        "value": 0
-      },
-      {
-        "type": "simple",
-        "variable": { "type": "custom_attribute", "name": "status" },
-        "operator": "eq",
-        "value": "active"
-      }
-    ]
-  }
-}
-```
-
-### Set Variable Node
-
-Stores a value for use later in the flow.
-
-```json
-{
-  "id": "set-flag",
-  "type": "set_variable",
-  "label": "Mark as Contacted",
-  "config": {
-    "variable": "wasContacted",
-    "value": true
-  },
-  "outputs": {
-    "onSuccess": "next-node",
-    "onError": "hangup-error"
-  }
-}
-```
-
-### Collect Audio Node
-
-Records audio with optional speech-to-text transcription.
-
-```json
-{
-  "id": "collect-feedback",
-  "type": "collect_audio",
-  "label": "Record Customer Feedback",
-  "config": {
-    "maxDuration": 60,
-    "firstSilenceTimeout": 5,
-    "silenceDetection": true,
-    "silenceDuration": 2,
-    "beep": true,
-    "maxRetry": 2,
-    "fallbackAudio": { "type": "audioFile", "audioId": "please-speak-audio" },
-    "recordingIdVariable": "feedbackRecordingId",
-    "transcription": true,
-    "languages": ["ar-MA", "fr-FR"],
-    "transcriptionVariable": "feedbackText"
-  },
-  "outputs": {
-    "onComplete": "process-feedback",
-    "onMaxDuration": "thank-you",
-    "onNoSpeech": "hangup-no-speech",
-    "onError": "hangup-error"
-  }
-}
-```
-
-| Config | Type | Default | Description |
-|--------|------|---------|-------------|
-| `maxDuration` | number | - | Max recording duration in seconds |
-| `firstSilenceTimeout` | number | - | Seconds to wait for user to start speaking |
-| `silenceDetection` | boolean | true | Stop on silence |
-| `silenceDuration` | number | 2 | Silence duration to trigger stop (seconds) |
-| `beep` | boolean | false | Play beep before recording |
-| `maxRetry` | number | 0 | Retry attempts if no speech detected |
-| `transcription` | boolean | false | Enable speech-to-text |
-| `languages` | string[] | `["auto"]` | Transcription languages (`ar-MA`, `fr-FR`, `en-US`) |
-
-| Output | Trigger |
-|--------|---------|
-| `onComplete` | Recording completed successfully |
-| `onMaxDuration` | Max duration reached |
-| `onNoSpeech` | No speech detected after retries |
-| `onError` | System error |
-
-### Say Node (Text-to-Speech)
-
-Converts text to speech with template variable support.
-
-```json
-{
-  "id": "say-greeting",
-  "type": "say",
-  "label": "Personalized Greeting",
-  "config": {
-    "text": "Hello {{ $contact.firstName }}, your balance is {{ $variables.balance }} dirhams.",
-    "language": "ar-MA",
-    "gender": "female",
-    "tone": "friendly",
-    "allowBargeIn": true,
-    "bargeInDtmfNodeId": "dtmf-menu"
-  },
-  "outputs": {
-    "onComplete": "next-node",
-    "onError": "hangup-error"
-  }
-}
-```
-
-| Config | Type | Default | Description |
-|--------|------|---------|-------------|
-| `text` | string | - | Template text with `{{ $source.path }}` placeholders |
-| `language` | string | - | TTS language: `ar-MA`, `ar`, `fr`, `en` |
-| `gender` | string | `female` | Voice gender: `male` or `female` |
-| `tone` | string | `neutral` | Voice tone: `neutral`, `friendly`, `formal` |
-| `allowBargeIn` | boolean | false | Allow DTMF interruption |
-
-**Template syntax:**
-- `{{ $contact.firstName }}` - Contact fields
-- `{{ $contact.customAttributes.balance }}` - Custom attributes
-- `{{ $variables.code }}` - Flow variables
-- `{{ $call.from }}` - Call info
-
-### SMS Node
-
-Sends an SMS to the contact during the call flow.
-
-```json
-{
-  "id": "send-confirmation",
-  "type": "sms",
-  "label": "Send Confirmation SMS",
-  "config": {
-    "messageTemplate": "Your confirmation code is {{ $variables.code }}. Thank you for calling!",
-    "senderId": "+212600000000"
-  },
-  "outputs": {
-    "onComplete": "next-node",
-    "onError": "continue-flow"
-  }
-}
-```
-
-| Config | Type | Description |
-|--------|------|-------------|
-| `messageTemplate` | string | Message with `{{ $source.path }}` placeholders |
-| `senderId` | string | Sender ID (phone number or alphanumeric) |
-
-<Note>
-SMS failures are non-fatal—the call continues even if the SMS fails to send.
-</Note>
-
-### Update Contact Node
-
-Updates a contact's custom attribute during the call.
-
-```json
-{
-  "id": "update-tier",
-  "type": "update_contact",
-  "label": "Update Customer Tier",
-  "config": {
-    "attributeName": "membership_tier",
-    "value": "gold"
-  },
-  "outputs": {
-    "onComplete": "next-node",
-    "onError": "continue-flow"
-  }
-}
-```
-
-Using dynamic values:
-
-```json
-{
-  "config": {
-    "attributeName": "last_contact_score",
-    "value": "{{ $variables.calculated_score }}"
-  }
-}
-```
-
-| Config | Type | Description |
-|--------|------|-------------|
-| `attributeName` | string | Custom attribute to update |
-| `value` | string/number/boolean | Static value or template |
-
-<Note>
-Update failures are non-fatal—the call continues even if the update fails.
-</Note>
-
-### Hangup Node
-
-Ends the call. This is a terminal node with no outputs.
-
-```json
-{
-  "id": "hangup-success",
-  "type": "hangup",
-  "label": "End Call - Success",
-  "config": {
-    "reason": "Call completed successfully"
-  }
-}
-```
-
-## Variable system
-
-Flows can access several types of variables:
-
-### System variables
-
-Automatically available during execution:
-
-| Variable             | Description                   |
-| -------------------- | ----------------------------- |
-| `sys.callId`         | Unique call identifier        |
-| `sys.callStatus`     | Current call status           |
-| `sys.callDirection`  | `inbound` or `outbound`       |
-| `sys.answeredBy`     | `human` or `machine`          |
-| `sys.contactId`      | Contact being called          |
-| `sys.contactPhone`   | Contact's phone number        |
-| `sys.contactName`    | Contact's full name           |
-| `sys.organizationId` | Your organization ID          |
-| `sys.programId`      | Program ID (if campaign call) |
-
-### Contact fields
-
-Standard contact properties:
-
-```json
-{ "source": "contactField", "field": "firstName" }
-{ "source": "contactField", "field": "lastName" }
-{ "source": "contactField", "field": "city" }
-```
-
-### Custom attributes
-
-Custom fields defined on contacts:
-
-```json
-{ "source": "customAttribute", "attributeName": "accountBalance" }
-{ "source": "customAttribute", "attributeName": "preferredLanguage" }
-```
-
-### Flow variables
-
-Variables set during execution:
-
-```json
-{ "source": "variable", "variableName": "userChoice" }
-{ "source": "variable", "variableName": "recordingId" }
-```
-
-## Barge-in
-
-Allow recipients to interrupt audio playback by pressing a key:
-
-```json
-{
-  "type": "play",
-  "config": {
-    "audioItems": [{ "type": "audioFile", "audioId": "message-id" }],
-    "allowBargeIn": true,
-    "bargeInDtmfNodeId": "dtmf-collect"
-  }
-}
-```
-
-When barge-in occurs:
-
-1. Audio playback stops immediately
-2. The pressed digit is captured
-3. Flow jumps to the specified DTMF node
-4. The digit is available as the first input
-
-## Best practices
-
-1. **Always handle errors** - Every node should have an error path
-2. **Use descriptive labels** - Makes debugging easier
-3. **Keep flows focused** - One flow per use case
-4. **Test incrementally** - Verify each node works before adding more
-5. **Document complex logic** - Use the description field
-6. **Consider timeout handling** - Don't leave users hanging
-
-## Related topics
-
-<CardGroup cols="2">
-
-<Card title="Audio Management" icon="volume-high" href="/features/audio-management">
-  Managing audio files.
-</Card>
-
-<Card title="Dictionaries" icon="book" href="/features/dictionaries">
-  Dynamic content playback.
-</Card>
-
-<Card title="Flows Overview" icon="diagram-project" href="/core-concepts/flows">
-  Core concepts overview.
-</Card>
-
-</CardGroup>

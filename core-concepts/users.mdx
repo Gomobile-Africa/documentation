@@ -1,0 +1,117 @@
+---
+title: "Users"
+description: "User profile and account management"
+---
+
+<Info>
+**Base path: `/users`**
+</Info>
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============ Enums (for nested organization) ============
+
+type OrgType = 'government' | 'enterprise' | 'individual' | 'education' | 'ngo';
+type OrgPlan = 'trial' | 'free' | 'basic' | 'advanced' | 'enterprise';
+type OrgSize = '1-10' | '11-50' | '51-200' | '500+';
+type OrgPrimaryUse = 'sales' | 'support' | 'market research';
+type OrgStatus = 'active' | 'suspended' | 'inactive';
+
+// ============ Request Types ============
+
+interface UpdateUserRequest {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;          // E.164 format
+}
+
+// ============ Response Types ============
+
+interface UserResponse {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  isEmailVerified: boolean;
+  lastLoginAt: string;     // ISO date
+  createdAt: string;       // ISO date
+  updatedAt: string;       // ISO date
+}
+
+interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  country: string;
+  type: OrgType;
+  industry: string;
+  plan: OrgPlan;
+  size: OrgSize;
+  primaryUse: OrgPrimaryUse;
+  ice: string | null;
+  timezone: string;
+  currency: string;
+  status: OrgStatus;
+  createdAt: string;       // ISO date
+  updatedAt: string;       // ISO date
+}
+
+interface UserMeResponse {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  isEmailVerified: boolean;
+  lastLoginAt: string;     // ISO date
+  createdAt: string;       // ISO date
+  updatedAt: string;       // ISO date
+  organization: OrganizationSummary;
+}
+```
+
+</Accordion>
+
+### Get current user profile with organization
+
+```bash
+curl -X GET https://api.gomobile.ma/api/users/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "john.doe@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phone": "+212612345678",
+  "isEmailVerified": true,
+  "lastLoginAt": "2025-01-15T10:30:00.000Z",
+  "createdAt": "2025-01-10T08:00:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z",
+  "organization": {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "name": "Acme Corporation",
+    "slug": "acme-corp",
+    "country": "MA",
+    "type": "enterprise",
+    "industry": "Technology",
+    "plan": "trial",
+    "size": "11-50",
+    "primaryUse": "sales",
+    "ice": null,
+    "timezone": "Africa/Casablanca",
+    "currency": "MAD",
+    "status": "active",
+    "createdAt": "2025-01-10T08:00:00.000Z",
+    "updatedAt": "2025-01-10T08:00:00.000Z"
+  }
+}
+```

@@ -1,0 +1,496 @@
+---
+title: "Contact Ingestion"
+description: "Bulk import contacts from CSV or Excel files"
+---
+
+<Info>
+**Base path: `/contact/ingestion`**
+</Info>
+
+## Overview
+
+The contact ingestion API allows bulk importing contacts from CSV or Excel files. The flow is:
+
+1. **Upload** - Parse file, specify if header row exists, create session
+2. **Validate** - Apply column mappings and validate all rows
+3. **Paginate** - Fetch validation results page by page
+4. **Execute** - Import valid rows, get failed rows CSV
+
+Sessions expire after 30 minutes.
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============ Enums ============
+
+type IngestionSessionStatus = 'uploaded' | 'validated' | 'executing' | 'executed';
+
+type ValidationFilter = 'all' | 'valid' | 'invalid' | 'existing';
+
+// ============ Request Types ============
+
+interface UploadOptions {
+  previewRows?: number;        // default: 20, max: 100
+  hasHeaderRow?: boolean;      // default: false - whether first row is headers
+  audienceId?: string;         // Optional audience UUID to link imported contacts to
+}
+
+interface ColumnMapping {
+  column: number;              // 0-indexed column position
+  field: string;               // Target field name (see Mappable Fields below)
+}
+
+interface ValidateRequest {
+  sessionId: string;           // UUID from upload response
+  columnMappings: ColumnMapping[];
+}
+
+interface ExecuteRequest {
+  sessionId: string;           // UUID from upload/validate
+}
+
+// ============ Query Parameters ============
+
+interface ValidationResultsQueryParams {
+  page?: number;               // default: 1, min: 1
+  limit?: number;              // default: 50, max: 100
+  filter?: ValidationFilter;   // default: 'all'
+}
+
+// ============ Response Types ============
+
+interface PreviewColumn {
+  index: number;               // 0-indexed column position
+  name: string;                // Header name if hasHeaderRow=true, else "Column 0", "Column 1", etc.
+}
+
+type PreviewRow = Record<string, string>; // Keys are column indices as strings
+
+interface UploadResponse {
+  sessionId: string;           // UUID for subsequent requests
+  fileName: string;            // Original file name
+  totalRows: number;           // Total rows in file (including header if present)
+  columnCount: number;         // Number of columns detected
+  columns: PreviewColumn[];    // Column metadata with names
+  previewRows: PreviewRow[];   // Preview rows as objects (excludes header row if hasHeaderRow=true)
+  hasHeaderRow: boolean;       // Whether first row was treated as headers
+  expiresAt: string;           // ISO timestamp when session expires
+}
+
+interface ValidationError {
+  column: number;              // 0-indexed column position
+  field: string;               // Mapped field name
+  message: string;             // Human-readable error message
+}
+
+interface ExistingContactInfo {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  fullName: string | null;
+  primaryEmail: string | null;
+  primaryPhone: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  occupation: string | null;
+  preferredChannel: string | null;
+  gender: string | null;
+  customAttributes: Record<string, unknown>;  // Keyed by attribute name
+}
+
+interface ValidationRowResult {
+  row: number;                          // 0-indexed row number (relative to data, not file)
+  data: Record<string, unknown>;        // Parsed values keyed by mapped field
+  existingContact?: ExistingContactInfo; // Present if phone matches existing contact
+  errors?: ValidationError[];           // Present only if row is invalid
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface ValidateResponse {
+  sessionId: string;
+  totalRows: number;           // Data rows (excluding header if hasHeaderRow=true)
+  validCount: number;
+  invalidCount: number;
+  existingCount: number;       // Rows matching existing contacts by phone
+  rows: ValidationRowResult[];
+  meta: PaginationMeta;
+}
+
+interface ExecuteResponse {
+  totalRows: number;           // Total data rows processed
+  importedCount: number;       // Successfully imported
+  createdCount: number;        // New contacts created
+  updatedCount: number;        // Existing contacts updated
+  failedCount: number;         // Failed rows (invalid + import errors)
+  failedRowsCsvUrl?: string;   // S3 presigned URL (valid 1 hour), only if failedCount > 0
+  audienceLinkedCount?: number; // Contacts linked to audience, only if audienceId was provided
+}
+```
+
+</Accordion>
+
+## Mappable Fields
+
+### Standard Contact Fields
+
+### Custom Attributes
+
+Map to custom attributes using the `custom.` prefix:
+
+```typescript
+{ column: 3, field: 'custom.company_size' }
+{ column: 4, field: 'custom.is_active' }
+```
+
+Custom attribute values are validated against their defined type:
+- `text` - String value
+- `number` - Numeric value
+- `boolean` - true/false (accepts: true, false, 1, 0, yes, no)
+- `date` - ISO date string
+- `phone_number` - Valid phone format
+- `email` - Valid email format
+- `url` - Valid URL format
+
+### Phone Normalization (Morocco)
+
+Phone numbers are validated and normalized to the Morocco international format (`+212XXXXXXXXX`).
+
+**Accepted input formats:**
+
+**Validation rules:**
+- Must be a valid Morocco phone number
+- After normalization, must match: `+212[5|6|7|8]XXXXXXXX`
+- The digit after `212` must be `5`, `6`, `7`, or `8` (Morocco phone prefixes)
+
+**Invalid examples:**
+- `+1234567890` - Non-Morocco country code
+- `+212312345678` - Invalid prefix (3 is not a valid prefix)
+- `12345` - Too short
+
+<Note>
+International numbers will be supported in a future update.
+</Note>
+
+### Upload a CSV or Excel file to start ingestion
+
+**Limits:**
+- Maximum 100,000 rows per file
+- Maximum 100 preview rows
+- Supported formats: CSV, XLSX, XLS
+
+**Header Row Behavior:**
+- When `hasHeaderRow=false`: Columns are named "Column 0", "Column 1", etc. Preview includes all rows.
+- When `hasHeaderRow=true`: Columns use actual header values from row 0. Preview excludes the header row.
+
+**Audience Linking:**
+- If `audienceId` is provided, the audience is validated immediately (fail-fast)
+- If the audience doesn't exist, the upload fails with `404` error
+- The audience ID is stored in the session and used during execute phase
+
+**Example (without header row):**
+```bash
+curl -X POST http://localhost:3000/contact/ingestion/upload \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -F "file=@contacts.csv" \
+  -F "previewRows=20"
+
+# Response 201
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "fileName": "contacts.csv",
+  "totalRows": 101,
+  "columnCount": 4,
+  "columns": [
+    { "index": 0, "name": "Column 0" },
+    { "index": 1, "name": "Column 1" },
+    { "index": 2, "name": "Column 2" },
+    { "index": 3, "name": "Column 3" }
+  ],
+  "previewRows": [
+    { "0": "firstName", "1": "lastName", "2": "phone", "3": "email" },
+    { "0": "John", "1": "Doe", "2": "+212612345678", "3": "john@example.com" },
+    { "0": "Jane", "1": "Smith", "2": "+212612345679", "3": "jane@example.com" }
+  ],
+  "hasHeaderRow": false,
+  "expiresAt": "2025-01-15T11:00:00.000Z"
+}
+```
+
+**Example (with header row):**
+```bash
+curl -X POST http://localhost:3000/contact/ingestion/upload \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -F "file=@contacts.csv" \
+  -F "previewRows=20" \
+  -F "hasHeaderRow=true"
+
+# Response 201
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "fileName": "contacts.csv",
+  "totalRows": 101,
+  "columnCount": 4,
+  "columns": [
+    { "index": 0, "name": "firstName" },
+    { "index": 1, "name": "lastName" },
+    { "index": 2, "name": "phone" },
+    { "index": 3, "name": "email" }
+  ],
+  "previewRows": [
+    { "0": "John", "1": "Doe", "2": "+212612345678", "3": "john@example.com" },
+    { "0": "Jane", "1": "Smith", "2": "+212612345679", "3": "jane@example.com" },
+    { "0": "Bob", "1": "Wilson", "2": "+212612345680", "3": "bob@example.com" }
+  ],
+  "hasHeaderRow": true,
+  "expiresAt": "2025-01-15T11:00:00.000Z"
+}
+```
+
+**Example (with audience linking):**
+```bash
+curl -X POST http://localhost:3000/contact/ingestion/upload \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -F "file=@contacts.csv" \
+  -F "previewRows=20" \
+  -F "hasHeaderRow=true" \
+  -F "audienceId=660e8400-e29b-41d4-a716-446655440000"
+
+# Response 201
+# Same as above - audienceId is stored in session for use during execute
+```
+
+---
+
+### Validate data with column mappings
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact/ingestion/validate \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "columnMappings": [
+    { "column": 0, "field": "firstName" },
+    { "column": 1, "field": "lastName" },
+    { "column": 2, "field": "primaryPhone" },
+    { "column": 3, "field": "primaryEmail" }
+  ]
+}
+'
+```
+
+Response:
+
+```json
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "totalRows": 100,
+  "validCount": 98,
+  "invalidCount": 2,
+  "existingCount": 1,
+  "rows": [
+    {
+      "row": 0,
+      "data": {
+        "firstName": "John",
+        "lastName": "Doe",
+        "primaryPhone": "+212612345678",
+        "primaryEmail": "john@example.com"
+      }
+    },
+    {
+      "row": 1,
+      "data": {
+        "firstName": "Jane",
+        "lastName": "Smith",
+        "primaryPhone": "+212612345679",
+        "primaryEmail": "jane@example.com"
+      },
+      "existingContact": {
+        "id": "660e8400-e29b-41d4-a716-446655440001",
+        "firstName": "Jane",
+        "lastName": "Smithson",
+        "fullName": null,
+        "primaryEmail": "jane.old@example.com",
+        "primaryPhone": "+212612345679",
+        "address": null,
+        "city": "Casablanca",
+        "state": null,
+        "zip": null,
+        "occupation": "Engineer",
+        "preferredChannel": null,
+        "gender": "female",
+        "customAttributes": {
+          "company": "TechCorp",
+          "loyalty_score": 85
+        }
+      }
+    },
+    {
+      "row": 2,
+      "data": {
+        "firstName": "Invalid",
+        "lastName": "User",
+        "primaryPhone": "not-a-phone",
+        "primaryEmail": "invalid"
+      },
+      "errors": [
+        {
+          "column": 2,
+          "field": "primaryPhone",
+          "message": "Invalid Morocco phone format"
+        },
+        {
+          "column": 3,
+          "field": "primaryEmail",
+          "message": "Invalid email format"
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 50,
+    "total": 100,
+    "totalPages": 2,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+---
+
+### Get paginated validation results after validation is comp...
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `page` | number | 1 | Page number (1-based) |
+| `limit` | number | 50 | Items per page (max: 100) |
+| `filter` | string | `all` | Filter: `all`, `valid`, `invalid`, or `existing` |
+
+```bash
+# Request - Get only invalid rows
+GET /contact/ingestion/validate/550e8400-e29b-41d4-a716-446655440000?page=1&limit=20&filter=invalid
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Response 200
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "totalRows": 100,
+  "validCount": 98,
+  "invalidCount": 2,
+  "existingCount": 5,
+  "rows": [
+    {
+      "row": 2,
+      "data": { "firstName": "Invalid", "primaryPhone": "bad" },
+      "errors": [{ "column": 2, "field": "primaryPhone", "message": "Invalid Morocco phone format" }]
+    },
+    {
+      "row": 49,
+      "data": { "firstName": "Bad", "primaryPhone": "" },
+      "errors": [{ "column": 2, "field": "primaryPhone", "message": "Primary phone is required" }]
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 2,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+---
+
+### Execute the import of valid contacts
+
+**Behavior:**
+- Only valid rows are imported
+- Existing contacts (matched by phone) are updated
+- New contacts are created
+- Invalid rows are included in the failed CSV
+- Session is marked as `executing` during import to prevent concurrent requests
+- Session is marked as `executed` after completion (cannot be executed again)
+- If `audienceId` was provided at upload, contacts are linked to the audience after import
+- Audience linking is non-fatal: if linking fails, the import still succeeds (contacts are created/updated)
+
+```bash
+curl -X POST https://api.gomobile.ma/api/contact/ingestion/execute \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "totalRows": 100,
+  "importedCount": 98,
+  "createdCount": 85,
+  "updatedCount": 13,
+  "failedCount": 2,
+  "failedRowsCsvUrl": "https://s3.amazonaws.com/bucket/ingestion/org-id/session-id/failed-rows.csv?X-Amz-..."
+}
+
+{
+  "totalRows": 100,
+  "importedCount": 98,
+  "createdCount": 85,
+  "updatedCount": 13,
+  "failedCount": 2,
+  "failedRowsCsvUrl": "https://s3.amazonaws.com/bucket/ingestion/org-id/session-id/failed-rows.csv?X-Amz-...",
+  "audienceLinkedCount": 98
+}
+```
+
+## Failed Rows CSV Format
+
+When import has failures, a CSV file is generated with:
+- All original columns (same order as uploaded file)
+- Additional `_error` column at the end with failure reason
+
+```csv
+firstName,lastName,primaryPhone,email,_error
+Invalid,User,bad-phone,invalid@email,"primaryPhone: Invalid phone number format"
+Bad,Data,,test@email.com,"primaryPhone: Primary phone is required"
+```
+
+The presigned URL is valid for 1 hour.
+
+## Error Responses
+
+All error responses follow this format:
+
+```typescript
+interface ErrorResponse {
+  statusCode: number;
+  message: string;
+  error: string;
+}
+```
+
+**Common Errors:**

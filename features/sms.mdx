@@ -1,0 +1,159 @@
+---
+title: "SMS"
+description: "Send individual SMS messages to contacts"
+---
+
+Send individual SMS messages to contacts.
+
+**Related APIs:**
+- [SMS Program API](/features/sms-programs) - Bulk SMS campaigns
+- [Contact API](/core-concepts/contacts) - Contact management
+- [Sender ID API](/features/sender-ids) - Sender ID management
+- [Credit API](/features/credits) - Credit management and billing
+
+---
+
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// REQUEST
+// ============================================
+
+interface SendSingleSmsInput {
+  contactId: string;      // UUID - must exist in the organization
+  senderId: string;       // UUID - from GET /sender-ids/available
+  messageTemplate: string; // Supports {{ $contact.* }} placeholders
+}
+
+// ============================================
+// RESPONSE
+// ============================================
+
+interface SendSingleSmsResponse {
+  success: boolean;
+  messageId?: string;     // Provider message ID (for delivery tracking)
+  smsLogId: string;       // UUID of the sms_logs record
+  smsParts: number;       // Number of SMS parts (multi-part for long messages)
+  encoding: 'GSM-7' | 'GSM-7 Extended' | 'UCS-2';
+  error?: string;         // Error message if success=false
+  creditCharged: number;  // Credits deducted (0 if send failed)
+}
+
+// ============================================
+// TEMPLATE SYNTAX
+// ============================================
+
+/**
+ * Message templates support {{ $contact.* }} placeholders:
+ *
+ * Contact fields:
+ * - {{ $contact.phone }}
+ * - {{ $contact.firstName }}
+ * - {{ $contact.lastName }}
+ * - {{ $contact.fullName }}
+ * - {{ $contact.email }}
+ * - {{ $contact.address }}
+ * - {{ $contact.city }}
+ * - {{ $contact.state }}
+ * - {{ $contact.zip }}
+ * - {{ $contact.occupation }}
+ * - {{ $contact.gender }}
+ * - {{ $contact.preferredChannel }}
+ *
+ * Custom attributes:
+ * - {{ $contact.customAttributes.fieldName }}
+ *
+ * Example:
+ * "Hello {{ $contact.firstName }}, your tier is {{ $contact.customAttributes.loyalty_tier }}"
+ *
+ * NOTE: Unlike SMS programs (which fall back to empty strings),
+ * single SMS will return a 400 error if a template variable is missing.
+ */
+```
+
+</Accordion>
+
+---
+
+## API Endpoints
+
+<Info>
+**Base path: `/sms`**
+</Info>
+
+### Send a single SMS to a contact
+
+**Flow:**
+1. Validates sender ID is active and accessible to the organization (shared or org-owned)
+2. Fetches contact with custom attributes
+3. Checks organization has positive credit balance
+4. Resolves template placeholders with contact data
+5. Sends SMS via provider
+6. Deducts credits (only on successful send)
+7. Returns result
+
+```bash
+curl -X POST https://api.gomobile.ma/api/sms/send \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "contactId": "550e8400-e29b-41d4-a716-446655440001",
+  "senderId": "550e8400-e29b-41d4-a716-446655440002",
+  "messageTemplate": "Hello {{ $contact.firstName }}, your loyalty tier is {{ $contact.customAttributes.loyalty_tier }}."
+}
+'
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "messageId": "orange-job-12345",
+  "smsLogId": "550e8400-e29b-41d4-a716-446655440099",
+  "smsParts": 1,
+  "encoding": "GSM-7",
+  "creditCharged": 1.887
+}
+
+{
+  "success": false,
+  "smsLogId": "550e8400-e29b-41d4-a716-446655440099",
+  "smsParts": 1,
+  "encoding": "GSM-7",
+  "error": "Provider timeout",
+  "creditCharged": 0
+}
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 400 | `SenderIdNotActiveError` | Sender ID is not active |
+| 400 | `SenderIdNotAccessibleError` | Sender ID not available to this organization |
+| 400 | `BadRequestException` | Template variable not found (e.g., missing custom attribute) |
+| 402 | `InsufficientCreditsError` | Organization has no credits |
+| 404 | `SenderIdNotFoundError` | Sender ID not found |
+| 404 | `ContactNotFoundError` | Contact not found in organization |
+
+---
+
+## Billing
+
+- Credits are checked before sending (`requireCredits` - must have positive balance)
+- Credits are deducted only after a successful send
+- Failed sends are not charged
+- Transaction type in credit history: `sms_charge` (with `sms_program_id: null`)
+
+---
+
+## SMS Encoding
+
+Message encoding is automatically detected and affects the number of SMS parts:
+
+The response includes `smsParts` and `encoding` so the caller knows the actual cost breakdown.

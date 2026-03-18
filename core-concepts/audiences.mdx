@@ -1,73 +1,95 @@
 ---
 title: "Audiences"
-description: "Groups of contacts that can be targeted by campaigns"
+description: "Group contacts into targetable audiences for campaigns"
 ---
 
-Audiences are groups of contacts. Instead of selecting contacts individually for each campaign, you organize them into audiences and target entire groups.
+<Info>
+**Base path: `/audience`**
+</Info>
 
-## Why audiences matter
+## Types
 
-Audiences solve several problems:
+<Accordion title="Type Definitions">
 
-- **Reusability** - Create an audience once, use it across multiple campaigns
-- **Segmentation** - Target different groups with different messages
-- **Maintenance** - Update audience membership without changing programs
-- **Overlap** - The same contact can belong to multiple audiences
+```typescript
+// ============ Request Types ============
 
-Think of audiences as dynamic lists that you can modify independently of your campaigns.
+interface CreateAudienceRequest {
+  name: string;                 // 3-64 characters
+  description?: string;         // max 256 characters
+}
 
-## Creating audiences
+interface UpdateAudienceRequest {
+  name?: string;                // 3-64 characters
+  description?: string;         // 1-256 characters
+}
 
-Create an audience with a name and optional description:
+interface AddContactsRequest {
+  contacts: string[];           // Array of contact UUIDs
+}
 
-```bash
-curl -X POST https://api.gomobile.ma/api/audience \
-  -H "x-api-key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Premium Customers",
-    "description": "Customers on premium subscription plans"
-  }'
-```
+// ============ Query Parameters ============
 
-Response:
+interface AudienceQueryParams {
+  page?: number;                // default: 1, min: 1
+  limit?: number;               // default: 20, max: 100
+  search?: string;              // searches name, description
+  sortBy?: string;              // name, createdAt, updatedAt
+  sortOrder?: 'asc' | 'desc';   // default: 'desc'
+}
 
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
-  "name": "Premium Customers",
-  "description": "Customers on premium subscription plans",
-  "createdAt": "2025-01-15T10:30:00.000Z",
-  "updatedAt": "2025-01-15T10:30:00.000Z"
+interface AudienceContactsQueryParams {
+  page?: number;                // default: 1, min: 1
+  limit?: number;               // default: 20, max: 100
+  search?: string;              // searches firstName, lastName, primaryPhone
+  sortBy?: string;              // firstName, lastName, primaryPhone, createdAt
+  sortOrder?: 'asc' | 'desc';   // default: 'desc'
+}
+
+// ============ Response Types ============
+
+interface AudienceResponse {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  createdAt: string;            // ISO date
+  updatedAt: string;            // ISO date
+  deletedAt: string | null;     // ISO date (soft delete)
+  createdBy: string | null;     // User UUID
+  updatedBy: string | null;     // User UUID
+  deletedBy: string | null;     // User UUID
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface AudienceWithCountResponse extends AudienceResponse {
+  contactCount: number;         // Number of contacts in this audience
+}
+
+interface AudienceListResponse {
+  data: AudienceWithCountResponse[];
+  meta: PaginationMeta;
 }
 ```
 
-## Adding contacts to audiences
+</Accordion>
 
-Once you have an audience, add contacts to it:
+### Get all audiences
 
-```bash
-curl -X POST https://api.gomobile.ma/api/audience/AUDIENCE_ID/add-contacts \
-  -H "x-api-key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "contacts": [
-      "contact-id-1",
-      "contact-id-2",
-      "contact-id-3"
-    ]
-  }'
-```
+**Searchable fields:** name, description
 
-You can add contacts in bulk—useful when importing from external systems.
-
-## Viewing audience contacts
-
-Get a paginated list of contacts in an audience:
+**Sortable fields:** name, createdAt, updatedAt
 
 ```bash
-curl -X GET "https://api.gomobile.ma/api/audience/AUDIENCE_ID/contacts?page=1&limit=20" \
+curl -X GET https://api.gomobile.ma/api/audience?page=1&limit=20&search=VIP \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -77,12 +99,75 @@ Response:
 {
   "data": [
     {
-      "id": "contact-uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+      "name": "VIP Customers",
+      "description": "High-value customers for priority campaigns",
+      "contactCount": 150,
+      "createdAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+---
+
+### Get audience by ID
+
+```bash
+curl -X GET https://api.gomobile.ma/api/audience/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "VIP Customers",
+  "description": "High-value customers for priority campaigns",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+### Get paginated list of contacts belonging to an audience
+
+**Searchable fields:** firstName, lastName, primaryPhone
+
+**Sortable fields:** firstName, lastName, primaryPhone, createdAt
+
+```bash
+curl -X GET https://api.gomobile.ma/api/audience/550e8400-e29b-41d4-a716-446655440000/contacts?page=1&limit=20&search=john \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "organizationId": "660e8400-e29b-41d4-a716-446655440001",
       "firstName": "John",
       "lastName": "Doe",
-      "primaryPhone": "+212612345678",
+      "primaryPhone": "+1234567890",
       "primaryEmail": "john@example.com",
-      "createdAt": "2025-01-15T10:30:00.000Z"
+      "createdAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z"
     }
   ],
   "meta": {
@@ -96,143 +181,105 @@ Response:
 }
 ```
 
-Search and filter options:
+---
 
-- **Searchable fields**: `firstName`, `lastName`, `primaryPhone`
-- **Sortable fields**: `firstName`, `lastName`, `primaryPhone`, `createdAt`
-
-Example with search:
+### Create a new audience
 
 ```bash
-curl -X GET "https://api.gomobile.ma/api/audience/AUDIENCE_ID/contacts?search=john&sortBy=firstName&sortOrder=asc" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-## Listing audiences
-
-View all audiences in your organization:
-
-```bash
-curl -X GET "https://api.gomobile.ma/api/audience?page=1&limit=20" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-Search and sort options:
-
-- **Searchable fields**: `name`, `description`
-- **Sortable fields**: `name`, `createdAt`, `updatedAt`
-
-Example with filters:
-
-```bash
-curl -X GET "https://api.gomobile.ma/api/audience?search=premium&sortBy=name&sortOrder=asc" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-## Updating audiences
-
-Modify audience details:
-
-```bash
-curl -X PUT https://api.gomobile.ma/api/audience/AUDIENCE_ID \
+curl -X POST https://api.gomobile.ma/api/audience \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "VIP Customers",
-    "description": "Updated description for VIP tier"
-  }'
+  -d '
+{
+  "name": "VIP Customers",
+  "description": "High-value customers for priority campaigns"
+}
+'
 ```
 
-## Audience strategies
+Response:
 
-### By customer value
-
-```
-┌─────────────────┐
-│  All Contacts   │
-├─────────────────┤
-│ ┌─────────────┐ │
-│ │   Premium   │ │  → High-touch campaigns
-│ └─────────────┘ │
-│ ┌─────────────┐ │
-│ │   Standard  │ │  → Regular campaigns
-│ └─────────────┘ │
-│ ┌─────────────┐ │
-│ │    Trial    │ │  → Conversion campaigns
-│ └─────────────┘ │
-└─────────────────┘
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "VIP Customers",
+  "description": "High-value customers for priority campaigns",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z"
+}
 ```
 
-### By geography
+---
 
-```
-Morocco Customers
-├── Casablanca Region
-├── Rabat Region
-├── Marrakech Region
-└── Other Regions
-```
-
-### By engagement
-
-```
-All Customers
-├── Active (contacted in last 30 days)
-├── At Risk (no contact in 60 days)
-└── Churned (no contact in 90+ days)
-```
-
-## Overlapping audiences
-
-Contacts can belong to multiple audiences. This is intentional and useful:
-
-- A contact might be in both "Premium Customers" and "Casablanca Region"
-- You can target them with region-specific campaigns AND premium-specific campaigns
-- When the same contact appears in multiple executions, Gomobile handles deduplication
-
-## Audience size and campaigns
-
-When you launch a program, Gomobile snapshots the audience at that moment. This means:
-
-- Contacts added after launch won't be included in that execution
-- Contacts removed after launch will still be called (they were in the snapshot)
-- This ensures predictable behavior for running campaigns
-
-To include new contacts, launch a new execution of the program.
-
-## Deleting audiences
-
-Remove an audience when it's no longer needed:
+### Add multiple contacts to an audience segment
 
 ```bash
-curl -X DELETE https://api.gomobile.ma/api/audience/AUDIENCE_ID \
+curl -X POST https://api.gomobile.ma/api/audience/550e8400-e29b-41d4-a716-446655440000/add-contacts \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "contacts": [
+    "123e4567-e89b-12d3-a456-426614174000",
+    "123e4567-e89b-12d3-a456-426614174001"
+  ]
+}
+'
+```
+
+Response:
+
+```json
+[
+  "123e4567-e89b-12d3-a456-426614174000",
+  "123e4567-e89b-12d3-a456-426614174001"
+]
+```
+
+---
+
+### Update audience
+
+```bash
+curl -X PUT https://api.gomobile.ma/api/audience/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "name": "Updated VIP Customers",
+  "description": "Updated description"
+}
+'
+```
+
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "Updated VIP Customers",
+  "description": "Updated description",
+  "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T12:00:00.000Z"
+}
+```
+
+---
+
+### Delete audience
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/audience/550e8400-e29b-41d4-a716-446655440000 \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
-Deleting an audience doesn't delete the contacts—they remain in the system and can be added to other audiences.
+Response:
 
-## Best practices
-
-- **Keep audiences focused** - One clear purpose per audience
-- **Use descriptive names** - Future you will thank present you
-- **Document in descriptions** - Explain the criteria for membership
-- **Review periodically** - Remove stale audiences, update membership
-- **Consider audience size** - Very large audiences may need multiple executions
-
-## Related concepts
-
-<CardGroup cols="2">
-
-<Card title="Contacts" icon="user" href="/core-concepts/contacts">
-  The people who belong to audiences.
-</Card>
-
-<Card title="Programs" icon="play" href="/core-concepts/programs">
-  Campaigns that target audiences.
-</Card>
-
-<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
-  Running instances that process audiences.
-</Card>
-
-</CardGroup>
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  ...
+}
+```

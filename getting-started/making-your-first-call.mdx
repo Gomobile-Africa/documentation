@@ -10,7 +10,7 @@ Let's walk through the complete process of making an automated call with Gomobil
 Make sure you have:
 
 - An authenticated session (see [Authentication](/getting-started/authentication))
-- Your access token ready
+- Your API key ready
 - A phone number you can call for testing
 
 We'll use curl commands throughout, but you can adapt these to any HTTP client.
@@ -150,14 +150,14 @@ curl -X POST https://api.gomobile.ma/api/programs \
     "audienceId": "AUDIENCE_ID",                # Which contacts to call
     "flowId": "FLOW_ID",                        # Which flow to execute
     "startAt": "2025-01-20T10:00:00Z",          # When to start (ISO 8601 format)
-    "didPool": ["+212500000001"],               # Caller ID numbers (must be yours)
+    "didPool": ["DID_ID"],                      # Caller ID DID UUIDs (must belong to your org)
     "retryStrategy": {
       "type": "none"                            # No retries for this test
     }
   }'
 ```
 
-The `didPool` contains the phone numbers that will show up as the caller ID. Make sure you're using numbers assigned to your account.
+The `didPool` contains DID UUIDs used as caller ID. Use a DID allocated to your account (see `GET /dids/available` in the API reference).
 
 ## Step 6: Launch the program
 
@@ -215,7 +215,7 @@ curl -X POST https://api.gomobile.ma/api/call-requests \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "fromNumber": "+212500000001",              # Your caller ID
+    "didId": "DID_ID",                          # Your DID UUID caller ID
     "contactId": "CONTACT_ID",                  # Who to call
     "flowId": "FLOW_ID",                        # Which flow to use
     "retry": { "type": "none" }                 # No retries

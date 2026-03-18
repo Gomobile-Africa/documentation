@@ -1,45 +1,342 @@
 ---
 title: "Execution Reports"
-description: "Detailed analytics for program executions"
+description: "Detailed analytics and reporting for program executions"
 ---
 
-Execution reports provide comprehensive analytics for your calling campaigns, including contact metrics, call metrics, and node-level statistics.
+Reports for program execution monitoring and analytics.
 
-## Main execution report
+<Info>
+**Base path: `/program-execution`**
+</Info>
 
-Get the primary report for an execution:
+---
 
-```bash
-curl -X GET https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report \
-  -H "x-api-key: YOUR_API_KEY"
+## Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// EFFECTIVE STATUS
+// ============================================
+
+/**
+ * Effective status includes computed pause window state.
+ * - DB stores: 'scheduled' | 'running' | 'paused' | 'paused_no_credits' | 'paused_threshold' | 'completed' | 'stopped' | 'cancelled'
+ * - API adds: 'paused_manual' (user paused) vs 'paused_window' (in pause window)
+ */
+type EffectiveStatus =
+  | 'scheduled'
+  | 'running'
+  | 'paused_manual'      // User explicitly paused
+  | 'paused_window'      // Currently in a pause window (computed at query time)
+  | 'paused_no_credits'  // Auto-paused due to insufficient credits
+  | 'paused_threshold'   // Auto-paused due to counter threshold reached
+  | 'completed'
+  | 'stopped'
+  | 'cancelled';
+
+// ============================================
+// CONTACT METRICS
+// ============================================
+
+/**
+ * Metrics aggregated from execution_contacts by status.
+ * Represents unique contacts, not call attempts.
+ */
+interface ContactMetrics {
+  totalContacts: number;
+
+  // By execution_contacts.status
+  pending: number;
+  queued: number;
+  calling: number;
+  pendingRetry: number;
+  completed: number;
+  failed: number;
+  skipped: number;
+
+  // Derived - most important campaign metric
+  reachRate: number;  // completed / totalContacts * 100
+}
+
+// ============================================
+// CALL METRICS
+// ============================================
+
+/**
+ * Metrics aggregated from calls by outcome.
+ * Can exceed totalContacts due to retries.
+ */
+interface CallMetrics {
+  totalCalls: number;
+
+  // By calls.outcome
+  connected: number;   // answered + voicemail (any pickup — line connected)
+  answered: number;    // human answered (calls.outcome = 'completed')
+  voicemail: number;
+  noAnswer: number;
+  busy: number;
+  rejected: number;
+  failed: number;
+
+  // By calls.flowOutcome
+  completed: number;       // flow ran to normal end (calls.flowOutcome = 'completed')
+
+  // Derived
+  connectionRate: number;  // connected / totalCalls * 100
+  answerRate: number;      // answered / totalCalls * 100
+}
+
+// ============================================
+// BILLING METRICS
+// ============================================
+
+/**
+ * Billing metrics for program execution.
+ */
+interface BillingMetrics {
+  totalCreditsUsed: number;       // Sum of all call costs
+  billableCallsCount: number;     // Calls with cost > 0
+  averageCostPerCall: number;     // totalCreditsUsed / billableCallsCount
+}
+
+// ============================================
+// PROGRAM REPORT (Main Report)
+// ============================================
+
+interface ProgramReport {
+  executionId: string;
+  programId: string;
+  organizationId: string;
+
+  // Status
+  status: string;                  // DB status
+  effectiveStatus: EffectiveStatus;
+  isInPauseWindow: boolean;
+
+  // Timing
+  scheduledStartAt: string;        // ISO date
+  scheduledStopAt?: string;        // ISO date
+  actualStartAt?: string;          // ISO date
+  actualEndAt?: string;            // ISO date
+  durationMs?: number;             // Computed: endTime - startTime
+
+  // Metadata
+  metadata: {
+    flowId: string;
+    flowName: string;
+    audienceId: string;
+    didPool: string[];
+    retryStrategy: RetryStrategy;
+    pauseWindows?: PauseWindows;
+  };
+
+  // Metrics
+  contactMetrics: ContactMetrics;
+  callMetrics: CallMetrics;
+  billingMetrics: BillingMetrics;
+}
+
+// ============================================
+// CALL HISTORY ITEM
+// ============================================
+
+type CallHistoryStatus = 'ongoing' | 'completed' | 'no_answer' | 'voicemail' | 'busy' | 'rejected' | 'failed';
+
+interface CallHistoryItem {
+  callId: string;
+  contactId: string | null;
+
+  // Call details
+  from: string;
+  to: string;
+  direction: 'inbound' | 'outbound';
+  attempt: number;
+
+  // Status
+  status: CallHistoryStatus;
+  outcome: string | null;
+
+  // Timing
+  startedAt: string;          // ISO date
+  endedAt?: string;           // ISO date
+  durationMs?: number;
+
+  // Billing
+  totalCost?: number;         // Total cost for this call
+}
+
+// ============================================
+// ATTEMPT BREAKDOWN
+// ============================================
+
+interface AttemptBreakdown {
+  attemptNumber: number;       // 1, 2, 3... or 0 for total
+
+  // Counts
+  callsAttempted: number;
+  callsConnected: number;     // answered + voicemail (any pickup)
+  callsAnswered: number;      // human answered
+  callsVoicemail: number;
+  callsNoAnswer: number;
+  callsFailed: number;
+  callsCompleted: number;     // flow ran to normal end
+
+  // Percentages (relative to callsAttempted for this attempt)
+  connectedPercentage: number;
+  answeredPercentage: number;
+  voicemailPercentage: number;
+  noAnswerPercentage: number;
+  completedPercentage: number;
+
+  // Metrics
+  averageDurationMs: number;
+}
+
+interface EventBreakdownResponse {
+  perAttempt: AttemptBreakdown[];
+  total: AttemptBreakdown;
+}
+
+// ============================================
+// NODE EXECUTION STATS
+// ============================================
+
+/**
+ * Execution statistics for a single node.
+ *
+ * NOTE: This is NOT a funnel because call flows are directed graphs
+ * with branches (DTMF/condition) and cycles (loops back to previous nodes).
+ * We report unique calls per node and total executions, not drop-off rates.
+ */
+interface NodeExecutionStat {
+  nodeId: string;
+  nodeType: string;
+  nodeLabel?: string;
+
+  // Unique calls that executed this node (at least once)
+  uniqueCalls: number;
+
+  // Total executions including loops/retries (uniqueCalls <= totalExecutions)
+  totalExecutions: number;
+
+  // % of calls that reached this node: uniqueCalls / totalCalls * 100
+  percentage: number;
+
+  // DTMF-specific (only for nodeType === 'dtmf')
+  dtmfBreakdown?: Record<string, number>;      // e.g., { "1": 50, "2": 30 }
+  dtmfPercentages?: Record<string, number>;    // e.g., { "1": 62.5, "2": 37.5 }
+}
+
+interface NodeExecutionStatsResponse {
+  nodes: NodeExecutionStat[];
+
+  // Summary
+  totalCalls: number;
+  completedCalls: number;      // flow_outcome = 'completed'
+  completionRate: number;      // completedCalls / totalCalls * 100
+}
+
+// ============================================
+// PROGRAM BILLING REPORT
+// ============================================
+
+/**
+ * Cost breakdown by node type (e.g., all DIAL nodes, all RECORD nodes)
+ */
+interface NodeTypeCostBreakdown {
+  nodeType: string;           // 'dial' | 'record' | etc.
+  totalCost: number;          // Total cost for all nodes of this type
+  executionCount: number;     // Number of executions
+  totalDurationMs: number | null;
+}
+
+/**
+ * Top costly call entry
+ */
+interface TopCostlyCall {
+  callId: string;
+  contactId: string | null;
+  totalCost: number;
+  durationMs: number | null;
+}
+
+/**
+ * Detailed billing report for a program execution
+ */
+interface ProgramBillingReport {
+  executionId: string;
+
+  summary: {
+    totalCreditsUsed: number;
+    billableCallsCount: number;
+    averageCostPerCall: number;
+  };
+
+  // Cost breakdown by node type
+  byNodeType: NodeTypeCostBreakdown[];
+
+  // Top 10 most expensive calls
+  topCostlyCalls: TopCostlyCall[];
+}
+
+// ============================================
+// PAGINATION
+// ============================================
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+interface PaginatedResponse<T> {
+  data: T[];
+  meta: PaginationMeta;
+}
 ```
 
-Response:
+</Accordion>
+
+---
+
+### Get main program execution report with metrics
 
 ```json
+// Request
+// GET /program-execution/770e8400-e29b-41d4-a716-446655440003/report
+
+// Response 200
 {
-  "executionId": "execution-uuid",
-  "programId": "program-uuid",
-  "organizationId": "org-uuid",
+  "executionId": "770e8400-e29b-41d4-a716-446655440003",
+  "programId": "550e8400-e29b-41d4-a716-446655440000",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
 
   "status": "running",
   "effectiveStatus": "paused_window",
   "isInPauseWindow": true,
 
-  "scheduledStartAt": "2025-01-20T09:00:00.000Z",
-  "scheduledStopAt": "2025-01-20T18:00:00.000Z",
-  "actualStartAt": "2025-01-20T09:00:05.000Z",
+  "scheduledStartAt": "2025-12-20T09:00:00.000Z",
+  "scheduledStopAt": "2025-12-20T18:00:00.000Z",
+  "actualStartAt": "2025-12-20T09:00:05.000Z",
   "durationMs": 14400000,
 
   "metadata": {
-    "flowId": "flow-uuid",
-    "flowName": "Payment Reminder Flow",
-    "audienceId": "audience-uuid",
+    "flowId": "03418632-e6da-451e-875f-23b55f938e3e",
+    "flowName": "Holiday Campaign Flow",
+    "audienceId": "550e8400-e29b-41d4-a716-446655440001",
     "didPool": ["+212500000001", "+212500000002"],
     "retryStrategy": {
       "type": "fixed_delay",
       "delayMinutes": 30,
       "maxRetries": 2
+    },
+    "pauseWindows": {
+      "monday": [
+        { "startAt": { "hour": 12, "minute": 0 }, "endAt": { "hour": 14, "minute": 0 } }
+      ]
     }
   },
 
@@ -57,172 +354,171 @@ Response:
 
   "callMetrics": {
     "totalCalls": 6200,
-    "answered": 4000,
-    "completed": 3500,
+    "connected": 4000,
+    "answered": 3500,
     "voicemail": 500,
     "noAnswer": 1500,
     "busy": 400,
     "rejected": 100,
     "failed": 200,
-    "answerRate": 64.52,
-    "completionRate": 87.5
+    "completed": 3200,
+    "connectionRate": 64.52,
+    "answerRate": 56.45
+  },
+
+  "billingMetrics": {
+    "totalCreditsUsed": 4650.00,
+    "billableCallsCount": 4000,
+    "averageCostPerCall": 1.1625
   }
 }
 ```
 
-## Effective status
+**Error Responses:**
 
-The `effectiveStatus` includes computed pause window state:
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Execution not found |
 
-| Status | Description |
-|--------|-------------|
-| `scheduled` | Waiting for start time |
-| `running` | Actively processing |
-| `paused_manual` | User explicitly paused |
-| `paused_window` | In a pause window |
-| `completed` | All contacts processed |
-| `stopped` | Reached stop time |
-| `cancelled` | Manually cancelled |
+---
 
-## Contact metrics
-
-Metrics aggregated from unique contacts:
-
-| Metric | Description |
-|--------|-------------|
-| `totalContacts` | Audience size at launch |
-| `pending` | Waiting to be called |
-| `queued` | In call queue |
-| `calling` | Currently on call |
-| `pendingRetry` | Waiting for retry |
-| `completed` | Successfully reached |
-| `failed` | All retries exhausted |
-| `skipped` | Skipped (cancelled, stopped) |
-| `reachRate` | `completed / totalContacts × 100` |
-
-## Call metrics
-
-Metrics aggregated from all call attempts:
-
-| Metric | Description |
-|--------|-------------|
-| `totalCalls` | All call attempts |
-| `answered` | Calls that connected |
-| `completed` | Flow completed successfully |
-| `voicemail` | Voicemail detected |
-| `noAnswer` | Ring timeout |
-| `busy` | Busy signal |
-| `rejected` | Call rejected |
-| `failed` | System/network error |
-| `answerRate` | `answered / totalCalls × 100` |
-| `completionRate` | `completed / answered × 100` |
-
-<Note>
-Call metrics can exceed contact count due to retries. For example, 1000 contacts with 2 retries can generate up to 3000 calls.
-</Note>
-
-## Call history
-
-Get paginated call history for an execution:
-
-```bash
-curl -X GET "https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/calls?page=1&limit=20" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-Response:
+### Get paginated call history for the execution
 
 ```json
+// Request
+// GET /program-execution/770e8400-e29b-41d4-a716-446655440003/report/calls?page=1&limit=10
+
+// Response 200
 {
   "data": [
     {
-      "callId": "call-uuid",
-      "contactId": "contact-uuid",
+      "callId": "1cbdf482-4dac-41ed-a430-2e311add389d",
+      "contactId": "6fd21c0b-bf05-407e-bcd7-9f9aab7ab91e",
       "from": "+212500000001",
       "to": "+212612345678",
       "direction": "outbound",
       "attempt": 1,
       "status": "completed",
       "outcome": "completed",
-      "startedAt": "2025-01-20T09:15:00.000Z",
-      "endedAt": "2025-01-20T09:15:45.000Z",
-      "durationMs": 45000
+      "startedAt": "2025-12-20T09:15:00.000Z",
+      "endedAt": "2025-12-20T09:15:45.000Z",
+      "durationMs": 45000,
+      "totalCost": 3.375
+    },
+    {
+      "callId": "eae26ac8-be39-490b-b9ed-a82e7f4048f6",
+      "contactId": "7fd21c0b-bf05-407e-bcd7-9f9aab7ab92f",
+      "from": "+212500000002",
+      "to": "+212698765432",
+      "direction": "outbound",
+      "attempt": 2,
+      "status": "no_answer",
+      "outcome": "no_answer",
+      "startedAt": "2025-12-20T09:45:00.000Z",
+      "endedAt": "2025-12-20T09:45:30.000Z"
     }
   ],
   "meta": {
     "page": 1,
-    "limit": 20,
+    "limit": 10,
     "total": 6200,
-    "totalPages": 310
+    "totalPages": 620
   }
 }
 ```
 
-### Filter by status
+**Status Mapping:**
 
-```bash
-curl -X GET "https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/calls?status=completed" \
-  -H "x-api-key: YOUR_API_KEY"
-```
+**Error Responses:**
 
-## Attempt breakdown
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Execution not found |
 
-Get statistics broken down by attempt number:
+---
 
-```bash
-curl -X GET https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/breakdown \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-Response:
+### Get event breakdown per attempt number
 
 ```json
+// Request
+// GET /program-execution/770e8400-e29b-41d4-a716-446655440003/report/breakdown
+
+// Response 200
 {
   "perAttempt": [
     {
       "attemptNumber": 1,
       "callsAttempted": 5000,
-      "callsAnswered": 3200,
-      "callsCompleted": 2800,
+      "callsConnected": 3200,
+      "callsAnswered": 2800,
       "callsVoicemail": 400,
       "callsNoAnswer": 1200,
       "callsFailed": 600,
-      "answeredPercentage": 64.0,
-      "completedPercentage": 56.0,
+      "callsCompleted": 2500,
+      "connectedPercentage": 64.0,
+      "answeredPercentage": 56.0,
+      "voicemailPercentage": 8.0,
+      "noAnswerPercentage": 24.0,
+      "completedPercentage": 50.0,
       "averageDurationMs": 42000
     },
     {
       "attemptNumber": 2,
       "callsAttempted": 1200,
-      "callsAnswered": 800,
-      "callsCompleted": 700,
-      "answeredPercentage": 66.67,
+      "callsConnected": 800,
+      "callsAnswered": 700,
+      "callsVoicemail": 100,
+      "callsNoAnswer": 300,
+      "callsFailed": 100,
+      "callsCompleted": 650,
+      "connectedPercentage": 66.67,
+      "answeredPercentage": 58.33,
+      "voicemailPercentage": 8.33,
+      "noAnswerPercentage": 25.0,
+      "completedPercentage": 54.17,
       "averageDurationMs": 38000
     }
   ],
   "total": {
     "attemptNumber": 0,
     "callsAttempted": 6200,
-    "callsAnswered": 4000,
-    "callsCompleted": 3500,
-    "answeredPercentage": 64.52,
+    "callsConnected": 4000,
+    "callsAnswered": 3500,
+    "callsVoicemail": 500,
+    "callsNoAnswer": 1500,
+    "callsFailed": 700,
+    "callsCompleted": 3150,
+    "connectedPercentage": 64.52,
+    "answeredPercentage": 56.45,
+    "voicemailPercentage": 8.06,
+    "noAnswerPercentage": 24.19,
+    "completedPercentage": 50.81,
     "averageDurationMs": 40500
   }
 }
 ```
 
-## Node execution statistics
+**Error Responses:**
 
-Get statistics for each node in the flow:
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Execution not found |
 
-```bash
-curl -X GET https://api.gomobile.ma/api/program-execution/EXECUTION_ID/report/node-stats \
-  -H "x-api-key: YOUR_API_KEY"
-```
+---
 
-Response:
+### Get node execution statistics
+
+**Important:** This is NOT a traditional funnel. Call flows are directed graphs with:
+- **Branches**: DTMF nodes and condition nodes route to different paths
+- **Cycles**: Flows can loop back to previous nodes
+
+We report `uniqueCalls` (calls that reached the node at least once) and `totalExecutions` (including loops), not drop-off rates.
 
 ```json
+// Request
+// GET /program-execution/770e8400-e29b-41d4-a716-446655440003/report/node-stats
+
+// Response 200
 {
   "nodes": [
     {
@@ -258,6 +554,22 @@ Response:
         "2": 31.58,
         "3": 15.79
       }
+    },
+    {
+      "nodeId": "play-option1",
+      "nodeType": "play",
+      "nodeLabel": "Option 1 Info",
+      "uniqueCalls": 2000,
+      "totalExecutions": 2000,
+      "percentage": 32.26
+    },
+    {
+      "nodeId": "hangup-1",
+      "nodeType": "hangup",
+      "nodeLabel": "End Call",
+      "uniqueCalls": 3500,
+      "totalExecutions": 3500,
+      "percentage": 56.45
     }
   ],
   "totalCalls": 6200,
@@ -266,31 +578,192 @@ Response:
 }
 ```
 
-### Understanding node stats
+**Why `uniqueCalls` vs `totalExecutions`:**
+- If a flow has a "retry menu" that loops back to the DTMF node, a single call might execute that node 3 times
+- `uniqueCalls: 100` means 100 different calls reached this node
+- `totalExecutions: 150` means those 100 calls executed the node 150 times total
 
-- **uniqueCalls**: Number of different calls that executed this node
-- **totalExecutions**: Total times the node was executed (includes loops)
-- **percentage**: Percentage of total calls that reached this node
-- **dtmfBreakdown**: For DTMF nodes, shows digit distribution
+**Error Responses:**
 
-<Note>
-Node stats are not a traditional funnel because call flows can branch and loop. We report unique calls per node, not drop-off rates.
-</Note>
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Execution not found |
 
-## Related topics
+---
 
-<CardGroup cols="2">
+### Get detailed billing report for the execution
 
-<Card title="Executions" icon="chart-line" href="/core-concepts/executions">
-  Managing executions.
-</Card>
+```json
+// Request
+// GET /program-execution/770e8400-e29b-41d4-a716-446655440003/report/billing
 
-<Card title="Programs" icon="play" href="/core-concepts/programs">
-  Creating campaigns.
-</Card>
+// Response 200
+{
+  "executionId": "770e8400-e29b-41d4-a716-446655440003",
 
-<Card title="Call Reports" icon="file-lines" href="/features/call-reports">
-  Individual call reports.
-</Card>
+  "summary": {
+    "totalCreditsUsed": 4650.00,
+    "billableCallsCount": 4000,
+    "averageCostPerCall": 1.1625
+  },
 
-</CardGroup>
+  "byNodeType": [
+    {
+      "nodeType": "dial",
+      "totalCost": 4500.00,
+      "executionCount": 6200,
+      "totalDurationMs": 186000000
+    },
+    {
+      "nodeType": "record",
+      "totalCost": 150.00,
+      "executionCount": 500,
+      "totalDurationMs": 2631579
+    }
+  ],
+
+  "topCostlyCalls": [
+    {
+      "callId": "1cbdf482-4dac-41ed-a430-2e311add389d",
+      "contactId": "6fd21c0b-bf05-407e-bcd7-9f9aab7ab91e",
+      "totalCost": 15.75,
+      "durationMs": 210000
+    },
+    {
+      "callId": "eae26ac8-be39-490b-b9ed-a82e7f4048f6",
+      "contactId": "7fd21c0b-bf05-407e-bcd7-9f9aab7ab92f",
+      "totalCost": 12.30,
+      "durationMs": 164000
+    }
+  ]
+}
+```
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Execution not found |
+
+---
+
+### Export program execution summary as a downloadable XLSX o...
+
+Contains 3 sheets (XLSX) or sections (CSV): Summary, Breakdown, Node Stats.
+
+```
+GET /program-execution/770e8400-e29b-41d4-a716-446655440003/report/export?format=xlsx
+→ Downloads report-770e8400-e29b-41d4-a716-446655440003.xlsx
+```
+
+**XLSX Sheets:**
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Execution not found |
+
+---
+
+### Export detailed call-level data as a downloadable XLSX or...
+
+One row per call attempt. Columns are: fixed fields + custom attributes + dynamic node columns.
+
+```
+GET /program-execution/770e8400-e29b-41d4-a716-446655440003/report/calls/export?format=csv
+→ Downloads calls-770e8400-e29b-41d4-a716-446655440003.csv
+```
+
+**Column Layout:**
+
+```
+[Fixed Columns] → [Custom Attribute Columns] → [Dynamic Node Columns]
+```
+
+**Fixed Columns (18):**
+
+**Custom Attribute Columns (dynamic, per organization):**
+
+One column per custom attribute defined for the organization (`custom_attributes` table), using `displayName` as the header. Values from `contacts_custom_attributes` for each contact. Empty if the contact has no value for that attribute.
+
+**Dynamic Node Columns (per flow node):**
+
+Columns generated from the flow graph. Skipped node types: `answer`, `hangup`.
+
+| Node Type | Columns Generated |
+|-----------|-------------------|
+| `dial` | `[label]: Result` |
+| `play` | `[label]: Result` |
+| `say` | `[label]: Result` |
+| `condition` | `[label]: Result` |
+| `sms` | `[label]: Status`, `[label]: Message`, `[label]: Parts` |
+| `update_contact` | `[label]: Attribute`, `[label]: Current Value` |
+| `dtmf` | `[label]: Input`, `[label]: Branch` |
+| `collect_audio` | `[label]: Result`, `[label]: Recording ID`, `[label]: Transcription` |
+| `record` | `[label]: Result`, `[label]: Recording ID`, `[label]: Transcription` |
+| `set_variable` | `[label]: Value` |
+
+- **Result**: The execution path output (e.g. `onAnswer`, `onComplete`, `branch_1`)
+- **Input**: DTMF digits pressed by caller (from `call_events`)
+- **Branch**: Which DTMF branch was taken (from execution path)
+- **Recording ID**: Recording identifier (from `call_recordings`)
+- **Transcription**: Transcribed text of the recording (from `call_recordings.transcriptionText`)
+- **Status**: SMS delivery status (from `sms_logs`)
+- **Message**: Rendered SMS message body (from `sms_logs.renderedMessage`)
+- **Parts**: Number of SMS parts/segments (from `sms_logs.smsParts`)
+- **Attribute**: The contact attribute name being updated (from `node.config.attributeName`)
+- **Current Value**: Current value of the attribute for the contact (from `contacts_custom_attributes`)
+- **Value**: Final variable value (from `flowExecutionData.finalVariables`)
+
+**Sort Order:** Contact last name ASC (nulls last), then attempt number ASC.
+
+**Error Responses:**
+
+| Code | Error | Description |
+|------|-------|-------------|
+| 404 | `NotFoundException` | Execution not found |
+
+---
+
+## Notes
+
+### Effective Status Logic
+
+```
+if (dbStatus === 'paused') {
+  return 'paused_manual';
+}
+
+if (dbStatus === 'running' && isInPauseWindow) {
+  return 'paused_window';
+}
+
+// paused_no_credits and paused_threshold pass through as-is
+return dbStatus;
+```
+
+Pause window check is computed at query time using the execution's `pauseWindows` configuration.
+`paused_no_credits` and `paused_threshold` are stored directly in the DB and returned as-is.
+
+### Contact vs Call Metrics
+
+Example: 1000 contacts with 2 retries = 1000 in ContactMetrics, up to 3000 in CallMetrics.
+
+### Node Stats vs Funnel
+
+Traditional funnels assume linear flow:
+```
+Step 1 (100%) → Step 2 (80%) → Step 3 (60%)
+```
+
+Call flows are graphs with branches and cycles:
+```
+          ┌─→ Option1 ─→ Hangup
+DTMF ─────┼─→ Option2 ─→ Hangup
+          └─→ Retry ────┘ (loops back)
+```
+
+Therefore we report:
+- `percentage`: What % of total calls reached this node (not % of previous node)
+- `totalExecutions`: Includes loops (same call executing node multiple times)

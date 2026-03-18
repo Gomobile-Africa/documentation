@@ -3,29 +3,82 @@ title: "Ad-hoc Calls"
 description: "Make individual calls outside of campaigns"
 ---
 
-Ad-hoc calls let you make individual calls without setting up a full campaign. Perfect for testing flows, one-off notifications, or integration with external systems.
+Request and manage individual calls with retry strategies.
 
-## When to use ad-hoc calls
+<Info>
+**Base path: `/call-requests`**
+</Info>
 
-- **Testing**: Verify your flow works before launching a campaign
-- **One-off calls**: Send a single notification to a specific contact
-- **External triggers**: Call when an event happens in your system
-- **Manual outreach**: Agent-initiated calls through your application
+---
 
-## Making a call
+## Types
 
-Request an ad-hoc call:
+<Accordion title="Type Definitions">
+
+```typescript
+// ============================================
+// RETRY STRATEGY
+// ============================================
+
+type RetryStrategy =
+  | { type: 'none' }
+  | { type: 'fixed-delay'; delay: number; maxRetries: number }  // delay in ms
+  | { type: 'scheduled'; dates: string[] };  // ISO date strings
+
+// ============================================
+// REQUEST TYPES
+// ============================================
+
+interface RequestCallDto {
+  /** DID UUID for outbound caller ID (from GET /dids/available) */
+  didId: string;
+
+  /** Contact being called (phone fetched from contact.primaryPhone) */
+  contactId: string;
+
+  /** Flow to execute during call */
+  flowId: string;
+
+  /** Retry strategy */
+  retry: RetryStrategy;
+
+  /** Optional: Schedule call for future execution (ISO date string) */
+  startAt?: string;
+}
+
+// ============================================
+// RESPONSE TYPES
+// ============================================
+
+interface CallRequestResult {
+  /** UUID job ID for tracking and querying reports */
+  jobId: string;
+
+  /** Always 'queued' (execution happens async) */
+  status: 'queued';
+}
+```
+
+</Accordion>
+
+---
+
+### Request an ad-hoc call
+
+Immediate execution:
 
 ```bash
 curl -X POST https://api.gomobile.ma/api/call-requests \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "fromNumber": "+212500000001",
-    "contactId": "contact-uuid",
-    "flowId": "flow-uuid",
-    "retry": { "type": "none" }
-  }'
+  -d '
+{
+  "didId": "123e4567-e89b-12d3-a456-426614174000",
+  "contactId": "contact_123",
+  "flowId": "flow_789",
+  "retry": { "type": "none" }
+}
+'
 ```
 
 Response:
@@ -37,146 +90,124 @@ Response:
 }
 ```
 
-The call is queued immediately and executed asynchronously. Use the `jobId` to track progress.
+With fixed-delay retry:
 
-## Request parameters
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `fromNumber` | Yes | Caller ID (must be in your DID pool) |
-| `contactId` | Yes | Contact to call (phone fetched from contact) |
-| `flowId` | Yes | Flow to execute during the call |
-| `retry` | Yes | Retry strategy for failed attempts |
-| `startAt` | No | Schedule call for later (ISO 8601) |
-
-## Retry strategies
-
-### No retries
-
-```json
+```bash
+curl -X POST https://api.gomobile.ma/api/call-requests \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
 {
-  "retry": { "type": "none" }
-}
-```
-
-Single attempt. Good for testing or when you'll handle retries externally.
-
-### Fixed delay
-
-```json
-{
+  "didId": "123e4567-e89b-12d3-a456-426614174000",
+  "contactId": "contact_123",
+  "flowId": "flow_789",
   "retry": {
     "type": "fixed-delay",
     "delay": 300000,
     "maxRetries": 3
   }
 }
+'
 ```
 
-Retry after a fixed delay (in milliseconds). With `maxRetries: 3`, the contact gets up to 4 total attempts.
-
-### Scheduled retries
+Response:
 
 ```json
 {
-  "retry": {
-    "type": "scheduled",
-    "dates": [
-      "2025-01-20T11:00:00Z",
-      "2025-01-20T14:00:00Z"
-    ]
-  }
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued"
 }
 ```
 
-Retry at specific times. The number of dates equals the number of retry attempts.
-
-## Scheduling calls
-
-Schedule a call for later:
+Scheduled start:
 
 ```bash
 curl -X POST https://api.gomobile.ma/api/call-requests \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "fromNumber": "+212500000001",
-    "contactId": "contact-uuid",
-    "flowId": "flow-uuid",
-    "retry": { "type": "none" },
-    "startAt": "2025-01-20T10:00:00Z"
-  }'
+  -d '
+{
+  "didId": "123e4567-e89b-12d3-a456-426614174000",
+  "contactId": "contact_123",
+  "flowId": "flow_789",
+  "retry": { "type": "none" },
+  "startAt": "2025-12-17T10:00:00Z"
+}
+'
 ```
 
-The call will be queued but won't execute until the specified time.
+Response:
 
-## Cancelling a call
+```json
+{
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued"
+}
+```
 
-Cancel a queued call before it executes:
+Scheduled retry dates:
 
 ```bash
-curl -X DELETE https://api.gomobile.ma/api/call-requests/JOB_ID \
-  -H "x-api-key: YOUR_API_KEY"
+curl -X POST https://api.gomobile.ma/api/call-requests \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "didId": "123e4567-e89b-12d3-a456-426614174000",
+  "contactId": "contact_123",
+  "flowId": "flow_789",
+  "retry": {
+    "type": "scheduled",
+    "dates": [
+      "2025-12-17T11:00:00Z",
+      "2025-12-17T14:00:00Z"
+    ]
+  }
+}
+'
 ```
 
-Returns `204 No Content` on success.
+Response:
 
-<Note>
-Cancellation only works for calls in `waiting` or `delayed` state. Calls already in progress will complete normally.
-</Note>
-
-## Tracking call status
-
-Use the job ID to get a detailed report:
-
-```bash
-curl -X GET https://api.gomobile.ma/api/call-report/JOB_ID \
-  -H "x-api-key: YOUR_API_KEY"
+```json
+{
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued"
+}
 ```
 
-See [Call Reports](/features/call-reports) for full details on report structure.
-
-## Error handling
+**Error Responses:**
 
 | Code | Error | Description |
 |------|-------|-------------|
-| 400 | `CallRequestValidationError` | Invalid request format |
+| 400 | `CallRequestValidationError` | Invalid request (missing fields, invalid format) |
 | 400 | `InvalidRetryStrategyError` | Malformed retry strategy |
-| 400 | `InvalidStartTimeError` | `startAt` is in the past |
-| 404 | `FlowNotFoundError` | Flow doesn't exist |
-| 404 | `ContactNotFoundError` | Contact doesn't exist or has no phone |
+| 400 | `InvalidStartTimeError` | startAt is in the past |
+| 404 | `FlowNotFoundError` | Flow does not exist |
+| 404 | `DidNotFoundError` | DID not found |
+| 400 | `DidNotActiveError` | DID is not active |
+| 400 | `DidNotAccessibleError` | DID is not available to this organization |
+| 404 | `ContactNotFoundError` | Contact does not exist or has no phone |
 
-## Ad-hoc vs program calls
+---
 
-| Feature | Ad-hoc Calls | Program Calls |
-|---------|--------------|---------------|
-| Audience | Single contact | Entire audience |
-| Scheduling | Per-call `startAt` | Program `startAt` |
-| Pause windows | Not supported | Supported |
-| Capacity management | None | Managed by orchestrator |
-| Use case | Testing, one-offs | Campaigns |
+### Cancel a queued call
 
-## Best practices
+**Notes:**
+- No-op if call is already executing or completed
+- Only cancels calls in `waiting` or `delayed` state
 
-- **Test flows first** - Use ad-hoc calls to verify flows before campaigns
-- **Use reasonable retries** - 2-3 retries is usually enough
-- **Track job IDs** - Store them for later reporting
-- **Handle async** - Calls execute asynchronously; poll for results
+```
+DELETE /call-requests/550e8400-e29b-41d4-a716-446655440000
+// Response 204 (no body)
+```
 
-## Related topics
+---
 
-<CardGroup cols="2">
+## Notes
 
-<Card title="Call Reports" icon="chart-line" href="/features/call-reports">
-  Track call results and details.
-</Card>
-
-<Card title="Flows" icon="diagram-project" href="/core-concepts/flows">
-  Define what happens during calls.
-</Card>
-
-<Card title="Programs" icon="play" href="/core-concepts/programs">
-  Run campaigns with audiences.
-</Card>
-
-</CardGroup>
+- `organizationId` is automatically injected from the authenticated user's organization
+- Phone number is fetched from `contact.primaryPhone`. Caller ID is resolved from the DID UUID via `GET /dids/available`
+- `jobId` is a UUID that can be used to query reports via `/call-report/:jobId`
+- Priority is fixed at `3` for ad-hoc calls (configurable for program calls)
+- **Program calls vs ad-hoc calls:** This API is for ad-hoc (manual) calls. Program calls are initiated by the Program Orchestrator internally with `retry: { type: 'none' }` - the orchestrator manages retries externally via `execution_contacts` table to respect capacity limits and pause windows.

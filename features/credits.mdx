@@ -1,13 +1,66 @@
 ---
 title: "Credits"
-description: "Check your account balance and transaction history"
+description: "Check balances and view credit transaction history"
 ---
 
-Credits are the currency for Gomobile services. Use these endpoints to monitor your balance and track usage.
+Endpoints for viewing and managing organization credits.
 
-## Check your balance
+---
 
-Get your current credit balance:
+<Info>
+**Base path: `/credits`**
+</Info>
+
+These endpoints are accessible by any authenticated user for their own organization.
+
+### Types
+
+<Accordion title="Type Definitions">
+
+```typescript
+interface GetBalanceResponseDto {
+  balance: number;
+}
+
+interface GetTransactionsQueryDto {
+  page?: number; // default: 1
+  limit?: number; // default: 20, max: 100
+  startDate?: string; // ISO date string
+  endDate?: string; // ISO date string
+}
+
+interface CreditTransaction {
+  id: string;
+  organizationId: string;
+  type: 'credit_add' | 'call_charge' | 'sms_charge' | 'adjustment' | 'initial';
+  amount: number; // Positive for add, negative for charge
+  balanceAfter: number;
+  callId: string | null;       // Reference to call for call_charge transactions
+  smsProgramId: string | null; // Reference to SMS program for sms_charge transactions
+  description: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+interface GetTransactionsResponseDto {
+  data: CreditTransaction[];
+  meta: PaginationMeta;
+}
+
+// Shared pagination meta (from @lib/shared/pagination)
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+```
+
+</Accordion>
+
+### Get credit balance
 
 ```bash
 curl -X GET https://api.gomobile.ma/api/credits/balance \
@@ -18,16 +71,14 @@ Response:
 
 ```json
 {
-  "balance": 1500.00
+  "balance": 150.00
 }
 ```
 
-## Transaction history
-
-View your credit transaction history:
+### Get credit transaction history
 
 ```bash
-curl -X GET "https://api.gomobile.ma/api/credits/transactions?page=1&limit=20" \
+curl -X GET https://api.gomobile.ma/api/credits/transactions?page=1&limit=10 \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -38,76 +89,79 @@ Response:
   "data": [
     {
       "id": "tx-001",
-      "organizationId": "org-uuid",
+      "organizationId": "org-123",
       "type": "credit_add",
-      "amount": 500,
-      "balanceAfter": 1500,
+      "amount": 100,
+      "balanceAfter": 150,
       "callId": null,
-      "smsProgramId": null,
       "description": "Monthly credit allocation",
-      "createdBy": "user-uuid",
-      "createdAt": "2025-01-15T10:30:00.000Z"
-    },
-    {
-      "id": "tx-002",
-      "organizationId": "org-uuid",
-      "type": "call_charge",
-      "amount": -3.75,
-      "balanceAfter": 1496.25,
-      "callId": "call-uuid",
-      "smsProgramId": null,
-      "description": null,
-      "createdBy": null,
-      "createdAt": "2025-01-15T11:00:00.000Z"
+      "createdBy": "user-123",
+      "createdAt": "2025-01-15T10:30:00Z"
     }
   ],
   "meta": {
     "page": 1,
-    "limit": 20,
-    "total": 125,
-    "totalPages": 7,
+    "limit": 10,
+    "total": 25,
+    "totalPages": 3,
     "hasNextPage": true,
     "hasPreviousPage": false
   }
 }
 ```
 
-### Query parameters
+---
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | number | 1 | Page number |
-| `limit` | number | 20 | Items per page (max 100) |
-| `startDate` | string | - | Filter from date (ISO 8601) |
-| `endDate` | string | - | Filter to date (ISO 8601) |
+## Credit Behavior
 
-### Filter by date range
+### Cost Calculation
 
-```bash
-curl -X GET "https://api.gomobile.ma/api/credits/transactions?startDate=2025-01-01&endDate=2025-01-31" \
-  -H "x-api-key: YOUR_API_KEY"
-```
+Credits are deducted per node execution during calls:
 
-## Transaction types
+| Node Type                               | Billing                         | Cost               |
+| --------------------------------------- | ------------------------------- | ------------------ |
+| DIAL                                    | Per second (no rounding, min 10s) | 0.075 credits/sec  |
+| PLAY                                    | Free                            | 0                  |
+| RECORD                                  | Per second (ceil)               | 0.057 credits/sec  |
+| COLLECT_AUDIO                           | Per second (ceil)               | 0.057 credits/sec  |
+| SAY (TTS)                               | Per second (ceil)               | 0.047 credits/sec  |
+| SMS                                     | Per message                     | 1.887 credits      |
+| DTMF                                    | Free                            | 0                  |
+| ANSWER, HANGUP, CONDITION, SET_VARIABLE | Free                            | 0                  |
 
-| Type | Description |
-|------|-------------|
-| `initial` | Initial credit allocation |
-| `credit_add` | Credits added to account |
-| `call_charge` | Deduction for call usage |
-| `sms_charge` | Deduction for SMS campaign |
-| `adjustment` | Manual adjustment |
+**SMS Program Billing:**
 
-## Related topics
+SMS programs (bulk campaigns) are billed at the same rate as SMS nodes:
+- 1.887 credits per message
+- Billed at campaign completion
+- Transaction type: `sms_charge`
+- Allows negative balance (send first, pay later)
 
-<CardGroup cols="2">
+**Other services (future):**
 
-<Card title="Call Reports" icon="chart-line" href="/features/call-reports">
-  View call-level details.
-</Card>
+| Service    | Billing         | Cost              |
+| ---------- | --------------- | ----------------- |
+| STT        | Per second      | 0.047 credits/sec |
+| AI Agent   | Per second      | 0.057 credits/sec |
+| WhatsApp   | Per conversation| 8.113 credits     |
 
-<Card title="Execution Reports" icon="chart-bar" href="/features/execution-reports">
-  View campaign details.
-</Card>
+**Notes:**
 
-</CardGroup>
+- Unanswered calls (DIAL with no connection) are not charged
+- DIAL has minimum billing of 10 seconds (if answered)
+- Ongoing calls can push balance negative
+- Credits are deducted after call completion
+
+### Out of Credits Behavior
+
+When an organization's balance reaches zero or below:
+
+1. **Running programs** are paused with status `paused_no_credits`
+2. **Queued calls** are cancelled
+3. **Ongoing calls** are allowed to complete (balance may go negative)
+4. **New call requests** are rejected with `InsufficientCreditsError`
+
+To resume operations:
+
+1. Credits are added to the organization
+2. Programs must be manually resumed via program management API

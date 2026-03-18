@@ -1,120 +1,168 @@
 ---
 title: "Audio Management"
-description: "Upload, organize, and use audio files in your campaigns"
+description: "Upload, organize, and manage audio files for call flows"
 ---
 
-Audio files bring your call flows to life. Gomobile provides a complete system for uploading, organizing, and using audio in your campaigns.
+<Info>
+**Base path: `/audio-management`**
+</Info>
 
-## Supported formats
+## Types
 
-Gomobile accepts common audio formats and converts them for telephony use:
+<Accordion title="Type Definitions">
 
-- WAV (recommended)
-- MP3
-- OGG
+```typescript
+// ============ Enums ============
 
-<Tip>
-  For best quality, upload WAV files at 8kHz sample rate, 16-bit mono. Files are
-  automatically converted if they don't match this specification.
-</Tip>
+type AudioUsageType =
+  | 'welcome'
+  | 'goodbye'
+  | 'question'
+  | 'prompt'
+  | 'hold_music'
+  | 'notification'
+  | 'other';
 
-## Uploading audio
+type SortOrder = 'asc' | 'desc';
 
-Upload an audio file:
+// ============ Request Types ============
 
-```bash
-curl -X POST https://api.gomobile.ma/api/audio-management/upload \
-  -H "x-api-key: YOUR_API_KEY" \
-  -F "file=@/path/to/audio.wav" \
-  -F "title=Welcome Message" \
-  -F "description=Main greeting for payment campaigns" \
-  -F "usageType=welcome" \
-  -F "tags=greeting,payment"
+interface UploadAudioRequest {
+  file: File;                   // multipart/form-data
+  title?: string;               // max 255 characters
+  description?: string;         // max 500 characters
+  usageType?: AudioUsageType;
+  tags?: string[];
+}
+
+interface UpdateAudioRequest {
+  title?: string;               // max 255 characters
+  description?: string;         // max 500 characters
+  usageType?: AudioUsageType;
+  tags?: string[];
+}
+
+// ============ Query Parameters ============
+
+interface AudioListQueryParams {
+  page?: number;                // default: 1, min: 1
+  limit?: number;               // default: 20, max: 100
+  search?: string;              // searches title, description, tags
+  sortBy?: string;              // createdAt, title, durationSeconds
+  sortOrder?: SortOrder;        // default: 'desc'
+  organizationId?: string;      // UUID filter
+  usageType?: AudioUsageType;
+  tags?: string[];              // comma-separated or array
+}
+
+// ============ Response Types ============
+
+interface AudioFile {
+  id: string;
+  name: string;
+  contentType: string;
+  fileSize: number;
+  checksum: string | null;
+}
+
+interface AudioResponse {
+  id: string;
+  title: string;
+  description: string | null;
+  usageType: AudioUsageType;
+  tags: string[] | null;
+  durationSeconds: number | null;
+  sampleRate: number | null;
+  channels: number | null;
+  bitDepth: number | null;
+  organizationId: string | null;
+  originalFileName: string | null;
+  createdAt: string;            // ISO date
+  updatedAt: string;            // ISO date
+  file: AudioFile;
+}
+
+interface AudioWithRelationsResponse extends AudioResponse {
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+}
+
+interface AudioListResponse {
+  data: AudioResponse[];
+  meta: PaginationMeta;
+}
+
+interface PlaybackUrlResponse {
+  id: string;
+  playbackUrl: string;
+  expiresIn: number;            // seconds
+  expiresAt: string;            // ISO date
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface MessageResponse {
+  message: string;
+}
 ```
 
-Response:
+</Accordion>
 
-```json
+### Upload and process audio file for use in call flows
+
+```
+// Request
+POST /audio-management/upload
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: multipart/form-data
+
+file: [binary audio file]
+title: "Welcome Message"
+description: "Welcome audio for customers"
+usageType: "welcome"
+tags: ["welcome", "greeting"]
+
+// Response 201
 {
-  "id": "audio-uuid",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
   "title": "Welcome Message",
-  "description": "Main greeting for payment campaigns",
+  "description": "Welcome audio for customers",
   "usageType": "welcome",
-  "tags": ["greeting", "payment"],
-  "durationSeconds": 8.5,
+  "tags": ["welcome", "greeting"],
+  "durationSeconds": 15.5,
   "sampleRate": 8000,
   "channels": 1,
   "bitDepth": 16,
-  "originalFileName": "audio.wav",
+  "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+  "originalFileName": "welcome.wav",
   "createdAt": "2025-01-15T10:30:00.000Z",
+  "updatedAt": "2025-01-15T10:30:00.000Z",
   "file": {
-    "id": "file-uuid",
-    "name": "audio_processed.wav",
+    "id": "770e8400-e29b-41d4-a716-446655440002",
+    "name": "welcome_processed.wav",
     "contentType": "audio/wav",
-    "fileSize": 136000
+    "fileSize": 248000,
+    "checksum": "abc123..."
   }
 }
 ```
 
-## Usage types
+---
 
-Categorize your audio for easier management:
-
-| Type           | Purpose                     |
-| -------------- | --------------------------- |
-| `welcome`      | Greeting messages           |
-| `goodbye`      | Closing messages            |
-| `question`     | Questions for the recipient |
-| `prompt`       | Instructional prompts       |
-| `hold_music`   | Music for hold situations   |
-| `notification` | Alert messages              |
-| `other`        | Anything else               |
-
-## Listing audio files
-
-Browse your audio library:
+### Get paginated list of audio files
 
 ```bash
-curl -X GET "https://api.gomobile.ma/api/audio-management/audios?page=1&limit=20&usageType=welcome" \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-Filter options:
-
-| Parameter   | Description                             |
-| ----------- | --------------------------------------- |
-| `search`    | Search title, description, tags         |
-| `usageType` | Filter by usage type                    |
-| `tags`      | Filter by tags                          |
-| `sortBy`    | `createdAt`, `title`, `durationSeconds` |
-| `sortOrder` | `asc` or `desc`                         |
-
-## Getting audio metadata
-
-Retrieve details about a specific audio file:
-
-```bash
-curl -X GET https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID/metadata \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-## Streaming audio
-
-Stream the audio file directly:
-
-```bash
-curl -X GET https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-This returns the binary audio data with appropriate headers for playback.
-
-## Playback URLs
-
-Generate a temporary signed URL for external playback:
-
-```bash
-curl -X GET "https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID/playback-url?expiresIn=3600" \
+curl -X GET https://api.gomobile.ma/api/audio-management/audios?page=1&limit=20&usageType=welcome \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
@@ -122,118 +170,174 @@ Response:
 
 ```json
 {
-  "id": "audio-uuid",
-  "playbackUrl": "https://storage.gomobile.ma/audio.wav?signature=...",
-  "expiresIn": 3600,
-  "expiresAt": "2025-01-15T11:30:00.000Z"
-}
-```
-
-Use this for previewing audio in your application or sharing with team members.
-
-## Updating audio metadata
-
-Change title, description, or tags:
-
-```bash
-curl -X PUT https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID \
-  -H "x-api-key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Updated Welcome Message",
-    "tags": ["greeting", "payment", "2025"]
-  }'
-```
-
-<Note>
-  You can't replace the audio file itself—upload a new file and update your
-  flows.
-</Note>
-
-## Deleting audio
-
-Remove an audio file:
-
-```bash
-curl -X DELETE https://api.gomobile.ma/api/audio-management/audio/AUDIO_ID \
-  -H "x-api-key: YOUR_API_KEY"
-```
-
-<Warning>
-  Make sure no active flows reference the audio before deleting.
-</Warning>
-
-## Using audio in flows
-
-Reference audio files in Play nodes:
-
-```json
-{
-  "type": "play",
-  "config": {
-    "audioItems": [
-      { "type": "audioFile", "audioId": "welcome-audio-id" },
-      { "type": "audioFile", "audioId": "menu-prompt-id" }
-    ]
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "Welcome Message",
+      "description": "Welcome audio for customers",
+      "usageType": "welcome",
+      "tags": ["welcome", "greeting"],
+      "durationSeconds": 15.5,
+      "sampleRate": 8000,
+      "channels": 1,
+      "bitDepth": 16,
+      "organizationId": "660e8400-e29b-41d4-a716-446655440001",
+      "originalFileName": "welcome.wav",
+      "createdAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z",
+      "file": {
+        "id": "770e8400-e29b-41d4-a716-446655440002",
+        "name": "welcome_processed.wav",
+        "contentType": "audio/wav",
+        "fileSize": 248000,
+        "checksum": "abc123..."
+      }
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
   }
 }
 ```
 
-Audio items play in sequence.
+---
 
-## Dynamic audio references
+### Stream audio file directly for playback
 
-You can reference audio IDs stored in variables:
+---
+
+### Get audio metadata without streaming content
+
+```bash
+curl -X GET https://api.gomobile.ma/api/audio-management/audio/550e8400-e29b-41d4-a716-446655440000/metadata \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
 
 ```json
 {
-  "type": "audioFile",
-  "audioId": { "source": "variable", "variableName": "selectedAudioId" }
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Welcome Message",
+  "description": "Welcome audio for customers",
+  "usageType": "welcome",
+  ...
 }
 ```
 
-This allows for dynamic audio selection based on contact data or flow logic.
+---
 
-## Recording guidelines
+### Get audio with related entities
 
-For professional-quality recordings:
+```bash
+curl -X GET https://api.gomobile.ma/api/audio-management/audio/550e8400-e29b-41d4-a716-446655440000/details \
+  -H "x-api-key: YOUR_API_KEY"
+```
 
-1. **Use a quiet environment** - Minimize background noise
-2. **Maintain consistent volume** - Don't vary too much between recordings
-3. **Speak clearly** - Moderate pace, clear pronunciation
-4. **Keep messages concise** - Get to the point quickly
-5. **Test on actual phones** - Quality differs from computer speakers
+Response:
 
-## Organizing your library
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Welcome Message",
+  "description": "Welcome audio for customers",
+  "usageType": "welcome",
+  ...
+  "organization": {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "name": "Acme Corporation",
+    "slug": "acme-corp"
+  }
+}
+```
 
-As your audio library grows:
+---
 
-- **Use consistent naming** - `campaign_type_message.wav`
-- **Leverage tags** - Add multiple relevant tags
-- **Set usage types** - Makes filtering easier
-- **Write descriptions** - Future you will appreciate it
-- **Archive old audio** - Don't delete, just organize
+### Update audio metadata
 
-## File size limits
+```bash
+curl -X PUT https://api.gomobile.ma/api/audio-management/audio/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "title": "Updated Welcome Message",
+  "tags": ["welcome", "updated"]
+}
+'
+```
 
-| Plan       | Max file size | Max duration |
-| ---------- | ------------- | ------------ |
-| Trial      | 5 MB          | 60 seconds   |
-| Free       | 10 MB         | 2 minutes    |
-| Basic      | 25 MB         | 5 minutes    |
-| Advanced   | 50 MB         | 10 minutes   |
-| Enterprise | Custom        | Custom       |
+Response:
 
-## Related topics
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Updated Welcome Message",
+  "tags": ["welcome", "updated"],
+  ...
+}
+```
 
-<CardGroup cols="2">
+---
 
-<Card title="Call Flows" icon="diagram-project" href="/features/call-flows">
-  Using audio in flows.
-</Card>
+### Generate a temporary signed URL for audio playback
 
-<Card title="Dictionaries" icon="book" href="/features/dictionaries">
-  Dynamic word/number audio.
-</Card>
+```bash
+curl -X GET https://api.gomobile.ma/api/audio-management/audio/550e8400-e29b-41d4-a716-446655440000/playback-url?expiresIn=7200 \
+  -H "x-api-key: YOUR_API_KEY"
+```
 
-</CardGroup>
+Response:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "playbackUrl": "https://s3.amazonaws.com/bucket/audio.wav?X-Amz-Signature=...",
+  "expiresIn": 7200,
+  "expiresAt": "2025-01-15T12:30:00.000Z"
+}
+```
+
+---
+
+### Get audio files filtered by usage type
+
+```bash
+curl -X GET https://api.gomobile.ma/api/audio-management/audios/usage/welcome \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Welcome Message",
+    "usageType": "welcome",
+    ...
+  }
+]
+```
+
+---
+
+### Delete audio file and remove from storage
+
+```bash
+curl -X DELETE https://api.gomobile.ma/api/audio-management/audio/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Response:
+
+```json
+{
+  "message": "Audio deleted successfully"
+}
+```
