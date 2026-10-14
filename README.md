@@ -1,5 +1,9 @@
 # Mintlify Starter Kit
 
+<Info>
+**Need API access?** [Request your API key](https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE) and our team will set you up within 24 hours.
+</Info>
+
 Use the starter kit to get your docs deployed and ready to customize.
 
 Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
