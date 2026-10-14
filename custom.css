@@ -1,0 +1,95 @@
+:root {
+  --gomobile-ink: #050607;
+  --gomobile-navy: #05092a;
+  --gomobile-action: #1d4ed8;
+  --gomobile-action-soft: #ecf0ff;
+  --gomobile-sidebar: #fcfcfc;
+  --gomobile-hairline: #f1f1f1;
+  --gomobile-surface: #f8fafc;
+  --gomobile-border: #e2e8f0;
+  --gomobile-page: #ffffff;
+  --gomobile-header: rgb(255 255 255 / 96%);
+  --gomobile-current-page: #efefef;
+  --gomobile-code-ink: #0f172a;
+  color-scheme: light;
+}
+
+html.dark {
+  --gomobile-ink: #f3f3f3;
+  --gomobile-navy: #f3f3f3;
+  --gomobile-action: #93b4ff;
+  --gomobile-action-soft: #172554;
+  --gomobile-sidebar: #0b0d12;
+  --gomobile-hairline: #232732;
+  --gomobile-surface: #141821;
+  --gomobile-border: #303746;
+  --gomobile-page: #050607;
+  --gomobile-header: rgb(5 6 7 / 96%);
+  --gomobile-current-page: #1d2330;
+  --gomobile-code-ink: #e2e8f0;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--gomobile-page);
+  color: var(--gomobile-ink);
+  font-family: Karla, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--gomobile-action-soft);
+  color: var(--gomobile-navy);
+}
+
+header {
+  border-color: var(--gomobile-hairline) !important;
+  background-color: var(--gomobile-header) !important;
+}
+
+aside {
+  border-color: var(--gomobile-hairline) !important;
+  background-color: var(--gomobile-sidebar) !important;
+}
+
+aside a[aria-current='page'] {
+  background-color: var(--gomobile-current-page) !important;
+  color: var(--gomobile-ink) !important;
+}
+
+article h1,
+article h2,
+article h3,
+article h4 {
+  color: var(--gomobile-navy);
+  letter-spacing: -0.025em;
+}
+
+article a {
+  color: var(--gomobile-action);
+}
+
+article :not(pre) > code {
+  border: 1px solid var(--gomobile-border);
+  border-radius: 0.375rem;
+  background: var(--gomobile-surface);
+  color: var(--gomobile-code-ink);
+}
+
+article table {
+  border-color: var(--gomobile-border);
+}
+
+article th {
+  background: var(--gomobile-surface);
+  color: var(--gomobile-navy);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gomobile-action);
+  outline-offset: 2px;
+}

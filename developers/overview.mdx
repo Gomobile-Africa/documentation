@@ -1,0 +1,35 @@
+---
+title: "Developer overview"
+description: "Connect your server-side integration using organization API keys."
+icon: "square-terminal"
+---
+
+Use the Gomobile API to work with your organization’s contacts, audiences, automation, and activity. Authenticate server-side requests with an organization API key.
+
+## Before you integrate
+
+- Use the API base URL supplied by Gomobile and the endpoints documented in this reference.
+- Create a dedicated API key for one integration or environment.
+- Keep the secret in a server-side secret manager.
+- Use HTTPS and send the key in the `X-API-Key` request header.
+- Plan for expiration, disabling, revocation, and replacement.
+
+<Warning>
+  Never put a Gomobile API key in browser code, a mobile application, a public repository, a URL, analytics data, or logs.
+</Warning>
+
+## Authentication model
+
+API keys are organization-scoped machine credentials. When creating one in the web application, you choose an **Admin**, **Manager**, or **Agent** role to determine available operations. The role cannot be changed after creation. Individual endpoints can impose additional restrictions.
+
+<Card title="Authenticate with an API key" icon="key-round" href="/developers/authentication" horizontal>
+  Create, store, send, disable, and revoke a key safely.
+</Card>
+
+<Card title="Learn the API basics" icon="braces" href="/developers/api-basics" horizontal>
+  Configure the base URL, pagination, errors, and safe test environment before making a request.
+</Card>
+
+<Card title="API access and support" icon="shield-check" href="/developers/support-boundary" horizontal>
+  Find connection requirements and help for integration needs not covered in this reference.
+</Card>

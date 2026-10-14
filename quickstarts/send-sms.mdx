@@ -1,0 +1,41 @@
+---
+title: "Send your first SMS"
+description: "Run a small saved flow against a test recipient."
+icon: "message-square"
+---
+
+Use a Multichannel flow to perform one controlled channel test.
+
+## Before you begin
+
+Set up your [account](/getting-started/set-up-account), prepare a test contact with a number you control, and check your credits. You need an available SMS sender ID.
+
+<Steps>
+  <Step title="Create the flow">
+    In Flows, create a **Multichannel flow** and give it a recognizable test name.
+  </Step>
+  <Step title="Configure the action">
+    Add a supported SMS step, select an available sender ID, and write a short test message. The message is sent to the run’s contact phone number; the SMS step does not configure a separate recipient.
+  </Step>
+  <Step title="Save and review">
+    Connect the intended path and save. Resolve any validation errors before testing.
+  </Step>
+  <Step title="Test the saved flow">
+    Open Test and choose your test contact or verified number. Review the message recipient and sender. Confirm the destination and start the test.
+  </Step>
+  <Step title="Inspect the run">
+    Check the resulting run timeline and the message on your test phone. Confirm that the intended step executed.
+  </Step>
+</Steps>
+
+## Expected result
+
+Your test phone receives the configured SMS when the send succeeds. The run records the automation path.
+
+## Troubleshooting
+
+Save changes before testing, supply all values the flow reads, and check the required channel resource and credits. Investigate the run’s failure details if the action does not complete.
+
+A test performs real channel activity and may consume credits. See [build and test a flow](/getting-started/build-first-flow) for the complete testing process.
+
+Next: [launch a campaign](/getting-started/launch-first-campaign).

@@ -1,0 +1,139 @@
+---
+title: "API basics"
+description: "Configure the Gomobile API base URL and understand requests, pagination, errors, and safe testing."
+icon: "braces"
+---
+
+Gomobile's API is an organization-scoped JSON API for server-to-server integrations. Except for file uploads and downloads, request and response bodies use JSON.
+
+## Base URL
+
+All documented paths use the global `/api` prefix. Use the production or staging host supplied by Gomobile.
+
+Set the complete base URL once in your shell:
+
+```bash
+export GOMOBILE_API_BASE_URL="https://<your-assigned-host>/api"
+export GOMOBILE_API_KEY="<your-api-key>"
+```
+
+Examples in this reference use those variables. Replace the placeholder host and key before running them.
+
+## Authentication
+
+Send the API key on every documented request:
+
+```http
+X-API-Key: <your-api-key>
+```
+
+For JSON bodies, also send:
+
+```http
+Content-Type: application/json
+```
+
+API keys can have the **Admin**, **Manager**, or **Agent** role. Most endpoints in this reference accept any of those API-key roles. An endpoint marked **Admin** rejects Manager and Agent keys. Available operations also depend on your organization’s enabled services.
+
+## Pagination
+
+Most list endpoints use page-based pagination:
+
+| Parameter | Meaning | Default | Limit |
+| --- | --- | --- | --- |
+| `page` | One-based page number | `1` | Minimum `1` |
+| `limit` | Items per page | `20` | Maximum `100` |
+| `search` | Text search where supported | — | Maximum 100 characters |
+| `sortBy` | Endpoint-specific sort field | Endpoint-specific | Use endpoint-supported fields |
+| `sortOrder` | Sort direction | Endpoint-specific | `asc` or `desc` |
+
+A paginated response has this envelope:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 0,
+    "totalPages": 0,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+Contact interactions use cursor pagination instead. Follow the returned `meta.nextCursor` rather than constructing a cursor yourself.
+
+## Validation
+
+Gomobile rejects undocumented request properties. Send only documented fields. UUID path and body fields must contain valid UUIDs, and ISO timestamps must include a valid timezone or UTC marker when the endpoint requires a date-time.
+
+## Errors
+
+Use the top-level `code` as the machine-readable discriminator. Handle errors using `code` and, when present, `fieldErrors` or `fieldDetails`. Descriptive `message` and `error` values can vary between error types.
+
+```json
+{
+  "code": "VALIDATION_FAILED",
+  "fieldErrors": {
+    "primaryPhone": ["primaryPhone must be longer than or equal to 3 characters"]
+  },
+  "fieldDetails": {
+    "primaryPhone": [
+      {
+        "code": "minLength",
+        "params": { "min": 3 }
+      }
+    ]
+  },
+  "statusCode": 400,
+  "message": "Validation failed",
+  "error": "BAD_REQUEST",
+  "timestamp": "2026-10-01T10:00:00.000Z",
+  "path": "/api/contact"
+}
+```
+
+Common HTTP statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid request or referenced input |
+| `401` | Missing, invalid, expired, disabled, or revoked key |
+| `403` | The key role or enabled services do not permit the operation |
+| `404` | Resource does not exist in the key's organization |
+| `409` | Duplicate resource, state conflict, or blocked lifecycle transition |
+| `402` | Insufficient organization credits (`INSUFFICIENT_CREDITS`); check the balance and arrange additional credits through your Gomobile contact |
+| `422` | A domain rule prevented the operation |
+| `429` | A rate-limited route rejected the request; obey `Retry-After` |
+| `500` | Unexpected server error |
+
+The API can return `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` on rate-limited routes. Use the headers returned for the requested operation to handle throttling.
+
+## Versioning and idempotency
+
+To avoid duplicate work when retrying requests:
+
+- a repeated `POST` can create or trigger work again;
+- use returned resource IDs to follow the original operation;
+- do not retry a timed-out mutation automatically without first checking its result.
+
+Handle unfamiliar response values without assuming they have the same meaning as existing ones.
+
+## Safe testing
+
+<Warning>
+  Some API requests place real calls, send messages, upload customer data, alter campaign state, or consume credits. Start with read endpoints, synthetic contacts, test channel resources, and a staging organization supplied by Gomobile.
+</Warning>
+
+Before testing a mutation, confirm its **Side effects** and **Required setup** notes in the endpoint reference.
+
+<CardGroup cols={2}>
+  <Card title="Contacts API" icon="contact" href="/developers/reference/contacts">
+    Create, list, update, upsert, and delete contacts.
+  </Card>
+  <Card title="Endpoint catalog" icon="list" href="/developers/reference/endpoint-catalog">
+    Find endpoints by resource and operation.
+  </Card>
+</CardGroup>

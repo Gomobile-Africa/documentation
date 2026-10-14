@@ -1,0 +1,39 @@
+---
+title: "Build an AI voice agent"
+description: "Create an agent, test its instructions, and prepare inbound publication."
+icon: "bot"
+---
+
+Build a small inbound assistant before extending its scope.
+
+## Before you begin
+
+Configure [API access](/developers/api-basics), check available credits, and arrange an eligible phone number for inbound publication. Review the [Agents API](/developers/reference/agents) for publication and recording behavior.
+
+<Steps>
+  <Step title="Create the agent">
+    Use `POST /agents` with a name and focused instructions. Start with the minimal request in [Create an agent](/developers/reference/agents#create-an-agent), using a synthetic product or service.
+  </Step>
+  <Step title="Inspect its configuration">
+    Save the returned agent ID. Review the returned configuration. Discover enabled models and voices with the options endpoints before customizing the pipeline.
+  </Step>
+  <Step title="Test with text">
+    Use `POST /agents/:id/test` with a representative question. Verify that the answer follows your instructions. This tests text behavior; it does not place a voice call.
+  </Step>
+  <Step title="Review inbound publication">
+    Read the available numbers using `GET /agents/:id/available-dids`. Confirm the exact number set and recording requirements before using `POST /agents/:id/publish`.
+  </Step>
+  <Step title="Check the voice experience">
+    After deliberate publication, call the bound number from a test phone. Check greeting, response behavior, and available call activity.
+  </Step>
+</Steps>
+
+## Expected result
+
+The text playground returns a response. After publication, the selected number routes inbound calls to the agent.
+
+## Troubleshooting and limits
+
+If no eligible number is returned, resolve number availability before publishing. Read the current options rather than hardcoding model IDs. An active agent can also be connected inside a Voice flow; this is separate from publishing phone numbers for inbound use.
+
+Publication changes live routing. The documented API publication path enables recording by default; review its [publication notes](/developers/reference/agents#publish-an-agent-for-inbound-calls) before proceeding. Testing and inbound calls can consume usage.

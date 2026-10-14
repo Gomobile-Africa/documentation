@@ -1,0 +1,315 @@
+---
+title: "Campaigns API"
+description: "Create campaign drafts, activate schedules, control lifecycle state, and retrieve reports."
+icon: "send"
+---
+
+Campaign endpoints are available to Admin, Manager, and Agent API keys. They operate on real audiences and flows; activation can place calls, send messages, change contacts, and consume credits.
+
+## Endpoint summary
+
+| Method | Path | Purpose | Side effect |
+| --- | --- | --- | --- |
+| `POST` | `/campaigns` | Create a draft | Creates configuration only |
+| `GET` | `/campaigns` | List campaigns | None |
+| `GET` | `/campaigns/:id` | Get campaign, metrics, and enrollment count | None |
+| `PATCH` | `/campaigns/:id` | Update a draft | Changes future launch configuration |
+| `POST` | `/campaigns/:id/activate` | Launch now or schedule | Enrolls contacts and starts/schedules real work |
+| `POST` | `/campaigns/:id/pause` | Soft-pause an active campaign | Stops new admission; some scheduled retries can still run depending on timing |
+| `POST` | `/campaigns/:id/resume` | Resume a paused campaign | Restarts admission |
+| `POST` | `/campaigns/:id/stop` | Permanently stop | Cancels pending campaign work |
+| `DELETE` | `/campaigns/:id` | Soft-delete a draft or stopped campaign | Destructive configuration change |
+| `GET` | `/campaigns/:id/report` | Read aggregate results | Can enqueue snapshot computation |
+| `GET` | `/campaigns/:id/report/contacts` | Read per-contact results | Exposes contact activity |
+| `GET` | `/campaigns/:id/funnel` | Read run-level funnel | Can enqueue snapshot computation |
+
+## Create request
+
+```json
+{
+  "name": "API test campaign",
+  "description": "Synthetic staging run",
+  "flowId": "123e4567-e89b-42d3-a456-426614174200",
+  "audienceId": "123e4567-e89b-42d3-a456-426614174100",
+  "dialConfig": {
+    "didIds": ["123e4567-e89b-42d3-a456-426614174300"],
+    "timeoutMs": 30000,
+    "enableAMD": true,
+    "recordCall": false
+  },
+  "retryConfig": {
+    "policy": {
+      "type": "fixed_delay",
+      "delayMs": 60000,
+      "maxAttempts": 2
+    },
+    "retryOnVoicemail": false
+  },
+  "startAt": "2030-10-01T09:00:00Z",
+  "stopAt": "2030-10-01T17:00:00Z"
+}
+```
+
+The schedule dates below are illustrative. Replace them with future timestamps before submitting a request; never reuse an example date without reviewing when the campaign will activate.
+
+`name`, `flowId`, and `audienceId` are required. A Voice (`call`) flow requires `dialConfig`. A Multichannel (`agnostic`) flow can require it when it invokes a Voice sub-flow.
+
+`dialConfig.didIds` accepts 1–100 active numbers available to the organization. `timeoutMs` is 5,000–120,000 milliseconds. Recording is optional and must be used only with appropriate notices and consent.
+
+Retries are supported for eligible call campaigns:
+
+- `fixed_delay`: `delayMs` up to 86,400,000 and `maxAttempts` from 1–10, including the initial attempt.
+- `scheduled`: `scheduledTimes` contains 1–9 strictly increasing ISO timestamps. The first entry schedules attempt 2; total attempts equal the number of entries plus the initial attempt, up to 10.
+
+Busy, rejected, and unanswered calls are eligible for retry while the attempt budget permits. Answered calls are not retried. `retryOnVoicemail` defaults to `true` and applies when answering-machine detection is enabled; set it to `false` to avoid repeated voicemail attempts. Campaign retry policies apply to Voice campaigns, not Multichannel campaigns.
+
+Campaign calling policy is resolved and stamped at activation. Review your organization’s calling hours before activation.
+
+## Calling policy
+
+`callingPolicy` is a top-level field on campaign creation and draft updates. Weekly hours use the organization’s timezone; do not supply a timezone inside this request.
+
+| Setting | Behavior |
+| --- | --- |
+| Omit `callingPolicy` or send `null` | Inherit the organization’s default at activation |
+| Supply `callingPolicy` | Replace the default with this campaign’s complete policy; weekdays are not merged |
+| Neither organization nor campaign has a policy | Contact hours are unrestricted; the campaign schedule still applies |
+
+Sending `null` does not override an existing organization policy with unrestricted hours. The effective policy is resolved when the campaign becomes active; later organization-default changes do not alter it.
+
+`callingPolicy.window` uses weekday keys `sunday` through `saturday`, each containing arrays of `{from, to}` spans:
+
+- Times use 24-hour `HH:mm`; `from` is inclusive and `to` is exclusive.
+- Each span must have `from < to`. Omitted weekdays are closed.
+- At least one weekday must contain hours. Up to eight spans are accepted per weekday.
+- A span cannot cross midnight. Configure separate permitted spans on consecutive weekdays.
+- Optional `blackouts` accepts up to 100 `{from, to, label?}` entries. Timestamps require `Z` or a UTC offset; labels are at most 120 characters. Choose a `to` later than `from`.
+
+This draft update permits contact Monday through Friday from 09:00 to 17:00, with a synthetic blackout. Replace the blackout dates before use, or omit `blackouts` if no blackout is needed:
+
+```bash
+curl -X PATCH "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "callingPolicy": {
+      "window": {
+        "monday": [{ "from": "09:00", "to": "17:00" }],
+        "tuesday": [{ "from": "09:00", "to": "17:00" }],
+        "wednesday": [{ "from": "09:00", "to": "17:00" }],
+        "thursday": [{ "from": "09:00", "to": "17:00" }],
+        "friday": [{ "from": "09:00", "to": "17:00" }]
+      },
+      "blackouts": [{
+        "from": "2030-12-24T09:00:00+01:00",
+        "to": "2030-12-24T17:00:00+01:00",
+        "label": "Synthetic test closure"
+      }]
+    }
+  }'
+```
+
+Review the resulting policy before activation. These hours govern contact initiation; an existing live call can continue outside them. They do not establish legal compliance.
+
+## Create a draft
+
+`POST /campaigns`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/campaigns" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "API test campaign",
+    "description": "Synthetic staging run",
+    "flowId": "'"$FLOW_ID"'",
+    "audienceId": "'"$AUDIENCE_ID"'",
+    "dialConfig": {
+      "didIds": ["'"$DID_ID"'"],
+      "timeoutMs": 30000,
+      "enableAMD": true,
+      "recordCall": false
+    }
+  }'
+```
+
+Example `201` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174400",
+  "name": "API test campaign",
+  "description": "Synthetic staging run",
+  "flowId": "123e4567-e89b-42d3-a456-426614174200",
+  "audienceId": "123e4567-e89b-42d3-a456-426614174100",
+  "status": "draft",
+  "startAt": null,
+  "stopAt": null,
+  "enrolledAt": null,
+  "createdAt": "2026-10-01T10:00:00.000Z"
+}
+```
+
+Creating a draft validates referenced resources but does not enroll contacts.
+
+## List campaigns
+
+`GET /campaigns`
+
+Query parameters: standard pagination/search/sort plus `status`. Lifecycle values are `draft`, `scheduled`, `active`, `paused`, `completed`, `failed`, and `stopped`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/campaigns" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20" \
+  --data-urlencode "status=draft"
+```
+
+Response: `200` with `{ data, meta }`; each item includes execution metrics.
+
+## Get a campaign
+
+`GET /campaigns/:id`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with the campaign, execution metrics, `requiresDid`, and `enrolledContacts`. `enrolledContacts` is `null` before enrollment runs.
+
+## Update a draft
+
+Schedule examples use illustrative dates. Replace `startAt` and `stopAt` with deliberate future timestamps, including a timezone offset or `Z`, and keep `stopAt` later than `startAt`. A past `startAt` can cause immediate activation.
+
+`PATCH /campaigns/:id`
+
+Only a draft can be updated. `flowId` and `audienceId` are immutable; create another campaign to change either binding.
+
+```bash
+curl -X PATCH "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Reviewed synthetic staging run",
+    "startAt": "2030-10-01T09:00:00Z",
+    "stopAt": "2030-10-01T17:00:00Z"
+  }'
+```
+
+Response: `200` with the updated draft. Fields set to `null` are cleared when their schema permits it.
+
+## Activate a campaign
+
+`POST /campaigns/:id/activate`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/activate" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+If `startAt` is absent or in the past, the campaign becomes `active` and enrolls eligible audience contacts. A future `startAt` produces `scheduled`; the lifecycle worker activates and enrolls it later.
+
+<Warning>
+  Activation is not a dry run. A static audience enrolls from its launch snapshot. A live audience can continue enrolling contacts that begin matching while the campaign is active.
+</Warning>
+
+## Pause a campaign
+
+`POST /campaigns/:id/pause`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/pause" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with `status: "paused"`. This is a soft pause: new campaign work stops, but some already scheduled retries can still run depending on timing.
+
+## Resume a campaign
+
+`POST /campaigns/:id/resume`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/resume" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with `status: "active"`. Live-audience admission resumes.
+
+## Stop a campaign
+
+`POST /campaigns/:id/stop`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/stop" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Stopping is terminal. Pending executions admitted by the campaign are cancelled, while calls already in progress finish naturally. Relaunch by creating or cloning another campaign.
+
+## Delete a campaign
+
+`DELETE /campaigns/:id`
+
+Only `draft` and `stopped` campaigns can be deleted.
+
+```bash
+curl -i -X DELETE "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Success response: `204 No Content`. A scheduled, active, or paused campaign must be stopped first.
+
+## Get the aggregate report
+
+`GET /campaigns/:id/report`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/report" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+The response is discriminated by `status`:
+
+- `not_started`: no reportable activity yet;
+- `computing`: the first snapshot is being built; or
+- `ready`: includes report data, `asOf`, `final`, `refreshing`, and `nextReadInMs`.
+
+Poll only at `nextReadInMs`. `null` means the report cannot change without another action. Clients must tolerate new report status values.
+
+## List campaign contacts
+
+`GET /campaigns/:id/report/contacts`
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/report/contacts" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Response: `200` with one row per enrolled contact. Retry chains are collapsed to the latest attempt; rows can include derived outcome, try count, last attempt, and a typed failure. This endpoint exposes customer activity and should be access-controlled accordingly.
+
+## Get the campaign funnel
+
+`GET /campaigns/:id/funnel`
+
+An optional `subFlow` UUID scopes the funnel to that invoked flow.
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/funnel" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+The response uses `not_started`, `computing`, or `ready`, like other report snapshots. A campaign funnel covers the campaign's whole life and counts runs rather than unique contacts.
+
+<Card title="Runs and Calls API" icon="activity" href="/developers/reference/runs-and-calls" horizontal>
+  Follow asynchronous runs and inspect the voice legs they produce.
+</Card>
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

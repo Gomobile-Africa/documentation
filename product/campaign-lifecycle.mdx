@@ -1,0 +1,56 @@
+---
+title: "Understand the campaign lifecycle"
+description: "Learn how audiences enroll contacts and what launch, pause, resume, stop, and retries mean."
+icon: "refresh-cw"
+---
+
+A campaign connects one audience to one saved Voice or Multichannel flow. Its schedule, calling policy, channel resources, and lifecycle determine when eligible contacts can progress.
+
+## Before creation
+
+Prepare and review the audience, flow, schedule, calling hours, phone numbers, retry plan, and credits. The campaign's audience and flow binding cannot be replaced after creation.
+
+## Static and live enrollment
+
+| Audience type | Campaign behavior |
+| --- | --- |
+| Static | The campaign starts from a snapshot of the audience membership used for the launch. Later manual membership changes do not redefine that original snapshot. |
+| Live | Contacts can continue enrolling while the campaign is running when they begin matching the audience rules. |
+
+<Warning>
+  Check live-audience rules before launch. A later contact-data change can make another contact eligible for a running campaign and produce real channel activity.
+</Warning>
+
+## Lifecycle actions
+
+| Action | What to expect |
+| --- | --- |
+| Save as draft | Stores the configuration without starting campaign activity. |
+| Launch or schedule | Makes the campaign eligible to start at its configured time and within its calling policy. |
+| Pause | Prevents new campaign work from starting. Work or retries already scheduled may still proceed depending on timing. |
+| Resume | Allows an eligible paused campaign to start new work again. |
+| Stop | Cancels pending campaign work. Calls already in progress may finish. |
+
+The interface exposes only actions valid for the campaign's current state. Verify the status after each operation instead of assuming every queued or in-flight item changed immediately.
+
+## Calling hours and schedules
+
+Campaign contact initiation is scheduled against the configured calling hours. Work already taking place inside a live call can continue outside those hours. Calling hours do not provide a compliance guarantee. It can use the configured organization hours, custom campaign hours, or unrestricted operation when that option is permitted by your policy.
+
+Campaigns retain the calling-hours configuration associated with them rather than automatically adopting later changes to the organization defaults. Review the displayed timezone before launch.
+
+## Retries
+
+Eligible voice campaigns can schedule additional tries. Keep all retry timing inside the campaign's active period and calling policy. A **try** is an attempt for one enrolled contact; it is not a separate campaign.
+
+Pause and stop are not interchangeable: pausing is reversible, while stopping cancels pending campaign work. Because timing can affect already scheduled work, confirm actual retry behavior in a safe test campaign before using it operationally.
+
+## Reporting levels
+
+- Use **campaign results** to understand enrolled contacts, tries, outcomes, progress, funnels, and applicable usage.
+- Use **Runs** to investigate the automation path and values for one execution.
+- Use **Calls** to investigate one voice interaction, including its outcome, timeline, and any transcript or recording made available.
+
+<Card title="Launch your first campaign" icon="send" href="/getting-started/launch-first-campaign" horizontal>
+  Prepare the required resources and create a controlled campaign.
+</Card>

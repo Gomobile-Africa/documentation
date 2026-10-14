@@ -1,0 +1,107 @@
+---
+title: "Inbound API"
+description: "Read inbound binding reports without exposing number provisioning or unsupported binding-management routes."
+icon: "phone-incoming"
+---
+
+Use an existing inbound binding to retrieve reports. Configure inbound routing in Gomobile or use the [Agent publication API](/developers/reference/agents).
+
+## Get an inbound binding report
+
+`GET /did-bindings/:id/report`
+
+Required role: Admin, Manager, or Agent API key.
+
+| Parameter | Location | Required | Description |
+| --- | --- | --- | --- |
+| `id` | Path | Yes | Binding-era UUID, not the phone-number UUID |
+| `range` | Query | No | `7d` (default), `30d`, `90d`, or `all` |
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/did-bindings/$BINDING_ID/report" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "range=30d"
+```
+
+The response always identifies the requested binding era, its number, target, recording setting, other eras for that number, and requested window. The report is snapshot-based and can initially be computing.
+
+Selected computing response fields:
+
+```json
+{
+  "status": "computing",
+  "stalled": false,
+  "binding": {
+    "id": "123e4567-e89b-42d3-a456-426614174710",
+    "status": "active",
+    "activeFrom": "2026-10-01T09:00:00.000Z",
+    "activeTo": null,
+    "target": {
+      "kind": "agent",
+      "agentId": "123e4567-e89b-42d3-a456-426614174700",
+      "agentName": "API test assistant"
+    },
+    "didId": "123e4567-e89b-42d3-a456-426614174300",
+    "didNumber": "+212500000000",
+    "recordCall": false
+  },
+  "eras": [],
+  "window": "30d",
+  "nextReadInMs": 2000
+}
+```
+
+Selected ready response fields (the complete response also includes `binding`, `eras`, and `stalled`):
+
+```json
+{
+  "status": "ready",
+  "stalled": false,
+  "window": "30d",
+  "nextReadInMs": null,
+  "refreshing": false,
+  "final": false,
+  "asOf": "2026-10-01T10:00:00.000Z",
+  "calls": {
+    "total": 4,
+    "answered": 3,
+    "byOutcome": {
+      "in_progress": 0,
+      "completed": 3,
+      "incomplete": 0,
+      "no_answer": 1,
+      "voicemail": 0,
+      "failed": 0,
+      "cancelled": 0
+    },
+    "avgDurationMs": 32000,
+    "byDay": []
+  },
+  "agent": null
+}
+```
+
+Flow targets return call aggregates. Agent targets can also return an agent-conversation summary. Test legs are excluded. Calendar-day buckets use `Africa/Casablanca`.
+
+Poll only after `nextReadInMs`; stop automatic polling when it is `null`. This does not necessarily mean `final` is true. A later user-requested read can refresh an on-demand report. The `stalled` field indicates stalled report computation. A closed era outside the requested trailing window can return `not_started` and can never gain data for that window.
+
+Errors include `400` for an invalid UUID or range, `404 DID_BINDING_NOT_FOUND` for an unknown or cross-workspace binding, and `503 REPORT_SNAPSHOT_UNAVAILABLE` when the initial build cannot be queued.
+
+<Warning>
+  Report data can contain phone numbers, call outcomes, recording flags, and agent performance information. Apply least-privilege access and your approved retention policy.
+</Warning>
+
+## Get a flow-binding funnel
+
+`GET /did-bindings/:id/funnel`
+
+This route is available only when the binding era targets a flow. It uses the same optional `range=7d|30d|90d|all` query and snapshot polling rules as the binding report.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/did-bindings/$BINDING_ID/funnel" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "range=30d"
+```
+
+A response is `not_started`, `computing`, or `ready`. A ready response includes `scope`, the node-level `funnel`, the matching flow `graph` when available, `asOf`, `final`, `refreshing`, and `nextReadInMs`. An agent binding returns `404` because an agent does not execute a flow graph.
+

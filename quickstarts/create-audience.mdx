@@ -1,0 +1,54 @@
+---
+title: "Create an audience"
+description: "Create a static test audience and add your first contact."
+icon: "users-round"
+---
+
+Start with a static audience so that you can review every member before a campaign launch.
+
+## Before you begin
+
+[Configure API access](/developers/api-basics), [create a test contact](/quickstarts/create-contact), and save its UUID as `CONTACT_ID`.
+
+<Steps>
+  <Step title="Create the audience">
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audience" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Casablanca test contacts","type":"static"}'
+```
+
+    Save the returned `id` as `AUDIENCE_ID`.
+  </Step>
+  <Step title="Add your contact">
+    Send your contact UUID in the `contacts` array:
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID/add-contacts" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"contacts\":[\"$CONTACT_ID\"]}"
+```
+
+    See [static audience membership](/developers/reference/audiences#add-contacts-to-a-static-audience) for the full contract.
+  </Step>
+  <Step title="Check membership">
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID/contacts" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+  </Step>
+</Steps>
+
+## Expected result
+
+Your contact appears in the audience membership response. Creating an audience does not launch a campaign.
+
+## Troubleshooting
+
+Manual membership changes apply to static audiences. For a live audience, membership follows rules. A `404` can mean an ID is absent from the key’s organization. See [Audiences API](/developers/reference/audiences).
+
+Next: [build a flow](/getting-started/build-first-flow).

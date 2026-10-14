@@ -1,0 +1,13 @@
+---
+title: "Rate limits"
+description: "Handle throttled requests without assuming a universal request budget."
+icon: "gauge"
+---
+
+A rate-limited route can return HTTP `429`. Obey `Retry-After` when supplied.
+
+The API can return `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` on rate-limited routes. Use the headers returned for the requested operation to handle throttling.
+
+For mutations, check the original operation’s result before retrying a timed-out request. Repeated requests can create or trigger work again; see [versioning and idempotency](/developers/versioning).
+
+See [Errors](/developers/errors) for the response format.

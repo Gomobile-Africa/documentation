@@ -1,0 +1,301 @@
+---
+title: "Flows API"
+description: "Create, retrieve, run, and inspect Gomobile flows through the API."
+icon: "git-branch"
+---
+
+Flow authoring and run endpoints are available to Admin, Manager, and Agent API keys. Flow graphs are advanced contracts: validate them in a staging organization before using them in production.
+
+## Endpoint summary
+
+| Method | Path | Purpose | Side effect |
+| --- | --- | --- | --- |
+| `POST` | `/flows` | Create a flow | Creates automation configuration |
+| `GET` | `/flows` | List flows | None |
+| `GET` | `/flows/:id` | Get one flow | None |
+| `PUT` | `/flows/:id` | Update a flow | Changes future executions |
+| `DELETE` | `/flows/:id` | Soft-delete a flow | Destructive configuration change |
+| `GET` | `/flows/:id/run-inputs` | Inspect required contact values | Reads contact data |
+| `POST` | `/flows/:id/run` | Start an asynchronous run | Can call, message, change contacts, and consume credits |
+| `POST` | `/flows/executions/:id/cancel` | Cancel a run and queued retries | Can hang up a live call |
+| `GET` | `/flows/:id/executions` | List one flow's runs | Reads activity and contact data |
+| `GET` | `/flows/executions/:id` | Get a run report | Reads activity, variables, messages, and costs |
+| `GET` | `/flows/:id/funnel` | Get a flow funnel snapshot | Can enqueue report computation |
+
+See the [endpoint catalog](/developers/reference/endpoint-catalog) for resource references and support scope.
+
+## Flow schema
+
+A flow requires:
+
+- `name`, up to 255 characters;
+- `startNodeId`, which must exist in `nodes`;
+- `nodes`, a map keyed by node ID; and
+- optional `channelType` and `status`.
+
+Customer-facing flow types map to API channel types:
+
+| Product term | API value |
+| --- | --- |
+| Multichannel flow | `agnostic` |
+| Voice flow | `call` |
+
+Create `call` or `agnostic` flows. SMS and WhatsApp messages are actions within these flows; standalone SMS- or WhatsApp-typed flows are not supported.
+
+Statuses are `draft`, `active`, and `archived`. A status is lifecycle metadata; it does not by itself prove that a graph is safe to execute.
+
+Each node has this base structure:
+
+```json
+{
+  "id": "apply-tag",
+  "type": "tag",
+  "config": { "tagName": "api-test" },
+  "outputs": {}
+}
+```
+
+The allowed node types and configuration depend on `channelType`. Unknown node types, invalid configuration, broken edges, or a missing start node are rejected.
+
+## Transfer recording and sub-flow variables
+
+The Voice `forward` step uses `record` for its bridged-conversation segment recording. Recording defaults to enabled when this field is omitted, and ringing is not recorded. Set `record: false` deliberately when recording should be disabled; this control is separate from full-call recording. `ringTimeoutSec` defaults to 30 seconds (5–120 accepted). Optional `maxDurationSec` accepts 10–7,200 seconds; omitting it leaves bridged duration uncapped.
+
+The Multichannel `invoke_sub_flow` configuration’s `varMapping` field currently has no effect. Do not rely on it to restrict propagation or isolate sensitive variables.
+
+## Create a flow
+
+`POST /flows`
+
+This example creates a small Multichannel flow that applies a tag when run.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/flows" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "API integration test",
+    "channelType": "agnostic",
+    "status": "draft",
+    "startNodeId": "apply-tag",
+    "nodes": {
+      "apply-tag": {
+        "id": "apply-tag",
+        "type": "tag",
+        "config": { "tagName": "api-test" },
+        "outputs": {}
+      }
+    }
+  }'
+```
+
+Example `201` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174200",
+  "organizationId": "123e4567-e89b-42d3-a456-426614174001",
+  "name": "API integration test",
+  "channelType": "agnostic",
+  "status": "draft",
+  "startNodeId": "apply-tag",
+  "nodes": {
+    "apply-tag": {
+      "id": "apply-tag",
+      "type": "tag",
+      "config": { "tagName": "api-test" },
+      "outputs": {}
+    }
+  },
+  "hash": "<flow-content-hash>",
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z"
+}
+```
+
+Creating the flow does not run it. It creates configuration that later calls can execute.
+
+## List flows
+
+`GET /flows`
+
+Query parameters: standard page/search/sort parameters plus `status` (`draft`, `active`, `archived`) and `channelType` (`agnostic`, `call`, `sms`, `whatsapp`).
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/flows" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "channelType=agnostic" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Response: `200` with `{ data, meta }`.
+
+## Get a flow
+
+`GET /flows/:id`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/flows/$FLOW_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with the saved flow graph; `404` for an unknown or cross-organization ID.
+
+## Update a flow
+
+`PUT /flows/:id`
+
+All create fields are optional. `channelType` is immutable. Send `expectedHash` from the version you loaded to prevent silently overwriting a concurrent edit.
+
+```bash
+curl -X PUT "$GOMOBILE_API_BASE_URL/flows/$FLOW_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "API integration test — revised",
+    "expectedHash": "<hash-returned-by-get>"
+  }'
+```
+
+Response: `200` with the updated flow. A stale `expectedHash` returns `409`; retrieve the current flow and reconcile changes instead of retrying blindly.
+
+## Delete a flow
+
+`DELETE /flows/:id`
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/flows/$FLOW_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Example response:
+
+```json
+{ "deleted": true }
+```
+
+This soft-deletes automation configuration. Check campaign, inbound, and sub-flow dependencies before deletion.
+
+## Inspect run inputs
+
+`GET /flows/:id/run-inputs?contactId=:contactId`
+
+Returns advisory information about contact values referenced by reachable steps and supported sub-flows, including presence, `requirement`, and `usedBy`. It does not guarantee execution success. Editing the returned values locally does not update the contact.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/flows/$FLOW_ID/run-inputs" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "contactId=$CONTACT_ID"
+```
+
+Use this read before a run to detect missing data without producing channel activity.
+
+## Run a flow
+
+`POST /flows/:id/run`
+
+Request:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `contactId` | Yes | Organization contact UUID |
+| `didId` | For a call flow or call sub-flow | Caller-number resource |
+| `enableAMD` | No | Answering-machine detection for direct call flows |
+| `variables` | No | Per-request values; reserved system/call/contact keys are dropped or overwritten |
+| `test` | No | Labels the run `manual_test`; it does not simulate the run |
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/flows/$FLOW_ID/run" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contactId": "'"$CONTACT_ID"'",
+    "variables": { "integrationRun": "test-001" },
+    "test": true
+  }'
+```
+
+Example `201` response:
+
+```json
+{
+  "executionId": "123e4567-e89b-42d3-a456-426614174210",
+  "status": "pending"
+}
+```
+
+<Warning>
+  `test: true` changes reporting labels only. The run uses the same drivers, credit checks, billing, contact updates, calls, and messages as a production run.
+</Warning>
+
+The endpoint returns before the asynchronous run finishes. Poll the run report using `nextReadInMs`. Run-input warnings do not block execution. Starting a run can create activity even when values are missing; a step can fail when it reads a missing value. Review inputs before starting, but do not treat this check as a guarantee against calls, messages, or data changes.
+
+## Cancel a run
+
+`POST /flows/executions/:id/cancel`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/flows/executions/$EXECUTION_ID/cancel" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Example response:
+
+```json
+{ "status": "cancelled" }
+```
+
+Side effects: cancels the execution, child executions, and queued retries; a live call is hung up. A completed run returns `409 FLOW_EXECUTION_ALREADY_TERMINATED`.
+
+## List a flow's runs
+
+`GET /flows/:id/executions`
+
+Use `page` (default `1`) and `limit` (default `20`, maximum `100`), plus `search`, `status`, `triggeredBy`, `callOutcome`, and `contactId`. Status, trigger, and outcome filters accept comma-separated values. This flow-specific list uses `contactId`; the organization-wide `GET /executions` list uses `contact`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/flows/$FLOW_ID/executions" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Response: `200` with `{ data, meta }`. Items include run status, trigger, contact, typed failure, own call outcome, message counts, and direct child runs.
+
+## Get a run report
+
+`GET /flows/executions/:id`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/flows/executions/$EXECUTION_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+The report includes execution facts, ordered node runs, child runs, the run's own call leg, message counts, request/final variables subject to access controls, cost, and `nextReadInMs`.
+
+Poll only when `nextReadInMs` is not `null`, and wait at least that duration. Continue until `nextReadInMs` becomes `null`; an execution can be terminal while its call activity is still settling. A null polling interval means this execution and its own call leg meet the endpoint’s settlement check. It does not guarantee that every child execution or asynchronous enrichment is complete.
+
+## Get a flow funnel
+
+`GET /flows/:id/funnel`
+
+Query parameters include `range` (`7d`, `30d`, `90d`, or `all`) and at most one of `campaign`, `binding`, or `subFlow`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/flows/$FLOW_ID/funnel" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "range=30d"
+```
+
+The response is discriminated by `status`: `not_started`, `computing`, or `ready`. A ready response contains scope, funnel counts, graph/version information, freshness fields, and `nextReadInMs`. The first read can enqueue report computation; follow the returned polling interval. Stop automatic polling when `nextReadInMs` is `null`. This does not necessarily mean `final` is true; a later user-requested read can refresh an on-demand report.
+
+<Card title="Campaigns API" icon="send" href="/developers/reference/campaigns" horizontal>
+  Bind a reviewed flow to an audience and manage its lifecycle.
+</Card>
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

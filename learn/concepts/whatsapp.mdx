@@ -1,0 +1,33 @@
+---
+title: "WhatsApp and templates"
+description: "Understand the WhatsApp connection, template approval, and flow-based messaging."
+icon: "message-circle"
+---
+
+WhatsApp in Gomobile combines an available WhatsApp Business connection with approved message templates. A template is reusable message content; a flow determines when to send it and which values to supply.
+
+## Connection and templates
+
+The organization needs an available WhatsApp channel before it can use messaging. In **WhatsApp**, review connection state and manage templates. Connection provisioning is separate from authoring a template.
+
+A template contains its name, language, category, message body, and ordered variables, plus supported optional content such as headers, footers, or buttons. For an appointment reminder, variables can supply the customer’s name and appointment details.
+
+## Approval lifecycle
+
+| State | Meaning |
+| --- | --- |
+| Pending | Submitted for Meta approval |
+| Approved | Available for supported sends and tests |
+| Rejected | Review the rejection reason, edit, and resubmit |
+
+Request a status refresh, then check the template list again after synchronization. Refresh is asynchronous; the immediate response can still show the previous status. Creating or submitting a template does not mean a message has been delivered.
+
+## Sending in a workflow
+
+Use an approved template in a supported flow. Supply the required variable values and review the destination. The API template test sends a real message to the organization creator’s verified phone number, using variable fallback values. It does not accept another recipient. A message ID does not prove delivery.
+
+Resubmitting a rejected template replaces its revisable content. Include optional headers, footers, and buttons you want to keep. Deleting a template removes every language variant sharing its name on the connected channel.
+
+The application does not provide a WhatsApp-only campaign or a general inbox experience. Build messaging into a supported flow instead.
+
+Next: [Flows](/learn/concepts/flows), [WhatsApp reference](/developers/reference/whatsapp), and [responsible use](/product/responsible-use).

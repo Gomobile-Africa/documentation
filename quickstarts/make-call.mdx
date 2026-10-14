@@ -1,0 +1,41 @@
+---
+title: "Make your first call"
+description: "Run a small saved flow against a test recipient."
+icon: "phone"
+---
+
+Use a Voice flow to perform one controlled channel test.
+
+## Before you begin
+
+Set up your [account](/getting-started/set-up-account), prepare a test contact with a number you control, and check your credits. You need an available caller number.
+
+<Steps>
+  <Step title="Create the flow">
+    In Flows, create a **Voice flow** and give it a recognizable test name.
+  </Step>
+  <Step title="Configure the action">
+    Add a **Text to speech** step, review the voice settings, and connect the call path. Use a message such as “This is a Gomobile test call.”
+  </Step>
+  <Step title="Save and review">
+    Connect the intended path and save. Resolve any validation errors before testing.
+  </Step>
+  <Step title="Test the saved flow">
+    Open Test and choose your test contact or verified number. Choose Call the contact and an available caller ID. Confirm the destination and start the test.
+  </Step>
+  <Step title="Inspect the run">
+    Check the resulting run timeline and the call in Calls. Confirm that the intended step executed.
+  </Step>
+</Steps>
+
+## Expected result
+
+Your test phone rings and plays the configured message when you answer. The run records the automation path.
+
+## Troubleshooting
+
+Save changes before testing, supply all values the flow reads, and check the required channel resource and credits. Investigate the run’s failure details if the action does not complete.
+
+A test performs real channel activity and may consume credits. See [build and test a flow](/getting-started/build-first-flow) for the complete testing process.
+
+Next: [launch a campaign](/getting-started/launch-first-campaign).

@@ -1,0 +1,18 @@
+---
+title: "Filtering and sorting"
+description: "Use the query parameters documented for each list endpoint."
+icon: "list-filter"
+---
+
+Filtering is endpoint-specific. Use only parameters and sort fields listed in the relevant resource reference.
+
+| Resource | Supported selection examples |
+| --- | --- |
+| [Contacts](/developers/reference/contacts) | `search` matches name, phone, and email; `include=customAttributes` embeds attribute values |
+| [Audiences](/developers/reference/audiences) | `search` matches name and description |
+| [Audience members](/developers/reference/audiences) | `membershipStatus=active` or `exited` |
+| [Agents](/developers/reference/agents) | `status=draft`, `active`, or `archived` |
+
+Most lists accept `sortBy` and `sortOrder`, but supported fields and handling of unsupported values vary by endpoint. Use fields listed in the resource reference. Some endpoints reject unsupported values; others fall back to their default ordering. `sortOrder` is `asc` or `desc`. Search is at most 100 characters where supported.
+
+Combine selection parameters with [pagination](/developers/pagination). Audience rules determine live membership; they are distinct from list-query filters.

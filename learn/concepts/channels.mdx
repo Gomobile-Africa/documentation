@@ -1,0 +1,26 @@
+---
+title: "Voice, SMS, and multichannel"
+description: "Choose the channel resources and flow type for an experience."
+icon: "messages-square"
+---
+
+A channel is how an interaction reaches a customer. A flow defines the actions performed through those channels.
+
+| Channel or flow type | Role | Required resource |
+| --- | --- | --- |
+| Voice | An in-call experience built with a Voice flow | Available caller number for outbound calls, or inbound binding for incoming calls |
+| SMS | A supported message action within a flow | Available SMS sender ID |
+| WhatsApp | An approved template action within a supported flow | Available WhatsApp connection and approved template |
+| Multichannel flow | Coordinates supported messaging, conditions, contact changes, tags, and Voice sub-flows | Resources required by the actions reached |
+
+## Resource versus action
+
+A phone number, sender ID, or WhatsApp connection enables a channel. The flow action determines what to do with it. Having a resource does not automatically send a message or place a call.
+
+## Choosing a flow
+
+Use Voice for steps that happen during a call. Use Multichannel to coordinate work outside a single call, such as a condition followed by an SMS or a Voice sub-flow. The flow type cannot be changed after creation.
+
+You can create SMS-only, WhatsApp-only, or combined campaigns using a Multichannel flow. Configure SMS and WhatsApp messages as actions within the flow, and add a Voice sub-flow when calls are needed. Channel tests perform real activity and may consume credits.
+
+Next: [Send your first SMS](/quickstarts/send-sms), [Make your first call](/quickstarts/make-call), and [WhatsApp](/learn/concepts/whatsapp).

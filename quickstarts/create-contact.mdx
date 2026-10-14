@@ -1,0 +1,44 @@
+---
+title: "Create your first contact"
+description: "Create and retrieve one test contact through the API."
+icon: "contact"
+---
+
+Use a number you control for any later channel tests. The synthetic value below illustrates the request shape.
+
+## Before you begin
+
+[Configure your API host and key](/developers/api-basics) and use an organization where you can create test records.
+
+<Steps>
+  <Step title="Create a contact">
+    Send the request below with your test contact’s number.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/contact" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"primaryPhone":"+212600000000","firstName":"Sara","lastName":"Test","city":"Casablanca"}'
+```
+  </Step>
+  <Step title="Keep the returned ID">
+    A successful creation returns HTTP `201`. Save `response.contact.id` as `CONTACT_ID`. Inspect `attributeErrors`: successful creation does not mean every custom attribute was stored.
+  </Step>
+  <Step title="Retrieve the record">
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/contact/$CONTACT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+  </Step>
+</Steps>
+
+## Expected result
+
+The retrieved record contains your test data. Creating a contact does not send a message or place a call.
+
+## Troubleshooting
+
+For validation failures, send only documented fields. If the number already exists, inspect the existing contact rather than repeatedly creating it. See the [Contacts API](/developers/reference/contacts) for update and upsert operations.
+
+Next: [create an audience](/quickstarts/create-audience).

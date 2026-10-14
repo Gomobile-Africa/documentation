@@ -1,0 +1,47 @@
+---
+title: "Errors"
+description: "Understand the shared API behavior and endpoint-specific limits."
+icon: "braces"
+---
+
+Use the top-level `code` as the machine-readable discriminator. Handle errors using `code` and, when present, `fieldErrors` or `fieldDetails`. Descriptive `message` and `error` values can vary between error types.
+
+```json
+{
+  "code": "VALIDATION_FAILED",
+  "fieldErrors": {
+    "primaryPhone": ["primaryPhone must be longer than or equal to 3 characters"]
+  },
+  "fieldDetails": {
+    "primaryPhone": [
+      {
+        "code": "minLength",
+        "params": { "min": 3 }
+      }
+    ]
+  },
+  "statusCode": 400,
+  "message": "Validation failed",
+  "error": "BAD_REQUEST",
+  "timestamp": "2026-10-01T10:00:00.000Z",
+  "path": "/api/contact"
+}
+```
+
+Common HTTP statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid request or referenced input |
+| `401` | Missing, invalid, expired, disabled, or revoked key |
+| `403` | The key role or enabled services do not permit the operation |
+| `404` | Resource does not exist in the key's organization |
+| `409` | Duplicate resource, state conflict, or blocked lifecycle transition |
+| `402` | Insufficient organization credits (`INSUFFICIENT_CREDITS`); check the balance and arrange additional credits through your Gomobile contact |
+| `422` | A domain rule prevented the operation |
+| `429` | A rate-limited route rejected the request; obey `Retry-After` |
+| `500` | Unexpected server error |
+
+The API can return `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` on rate-limited routes. Use the headers returned for the requested operation to handle throttling.
+
+See [API basics](/developers/api-basics) for setup and request conventions.

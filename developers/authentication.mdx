@@ -1,0 +1,79 @@
+---
+title: "Authenticate with an API key"
+description: "Create an organization API key and send it safely in server-to-server requests."
+icon: "key-round"
+---
+
+Gomobile API keys are long-lived machine credentials for server-to-server integrations. Only organization owners and administrators can manage keys in the customer interface.
+
+## Create a key
+
+<Steps>
+  <Step title="Open API keys">
+    In the Gomobile sidebar, select **API keys**.
+  </Step>
+  <Step title="Create the key">
+    Choose **Create key**, enter a unique descriptive name, and select an Admin, Manager, or Agent role. Choose an expiration that matches your organization's security policy.
+  </Step>
+  <Step title="Store the secret immediately">
+    Copy the secret into an approved server-side secret manager. Gomobile shows the complete value only once.
+  </Step>
+  <Step title="Acknowledge storage">
+    Confirm that you copied the secret, then close the dialog.
+  </Step>
+</Steps>
+
+<Warning>
+  If you lose the secret, you cannot reveal it again. Create a replacement key, update the integration, verify it, and revoke the old key.
+</Warning>
+
+## Send the key
+
+Send the secret in the `X-API-Key` header on every API request:
+
+```http
+X-API-Key: <your-secret-key>
+```
+
+Use the API base URL supplied by Gomobile, including the `/api` prefix. Available operations depend on the key’s role and your organization’s enabled services.
+
+For copy-ready environment variables, pagination, error handling, and safe test guidance, see [API basics](/developers/api-basics).
+
+## Manage the key lifecycle
+
+From **API keys**, you can:
+
+- search by name or masked identifier;
+- see role, status, last use, creator, and expiration;
+- change its name or expiration;
+- disable it temporarily and enable it again;
+- revoke it permanently.
+
+The assigned role is fixed. Create a new key when the integration needs a different role.
+
+## Rotate a key safely
+
+<Steps>
+  <Step title="Create a replacement">
+    Give the new key a name that identifies the integration and rotation period.
+  </Step>
+  <Step title="Update the server secret">
+    Replace the credential in the integration's secret manager without committing it to source control.
+  </Step>
+  <Step title="Verify requests">
+    Confirm that the integration succeeds with the replacement key.
+  </Step>
+  <Step title="Revoke the old key">
+    Revoke the previous credential only after all workloads have moved to the replacement.
+  </Step>
+</Steps>
+
+## Authentication failures
+
+| Symptom | Check |
+| --- | --- |
+| Request is unauthenticated | The header is exactly `X-API-Key`, the value is the secret, and the key has not been revoked |
+| Request was working and now fails | Check whether the key expired or was disabled |
+| Request is forbidden | Check the key’s role and your organization’s enabled services |
+| Secret cannot be recovered | Create a replacement; the complete secret is shown only at creation |
+

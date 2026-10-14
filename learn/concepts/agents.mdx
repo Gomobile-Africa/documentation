@@ -1,0 +1,29 @@
+---
+title: "AI voice agents"
+description: "Understand agent instructions, voice configuration, testing, and inbound publication."
+icon: "bot"
+---
+
+An AI voice agent defines a conversational assistant’s behavior. Unlike a flow, which follows authored steps and branches, an agent responds using its instructions and configured AI and voice capabilities.
+
+## What you configure
+
+Define the agent’s purpose and instructions, welcome message, and available voice setup. Give it a focused scope, such as answering questions about appointment preparation. A compatible [knowledge base](/learn/concepts/knowledge-bases) can provide supporting documents.
+
+Available providers, models, voices, and controls depend on workspace configuration. Read the choices offered by Gomobile rather than assuming every option is available.
+
+## Configuration versus publication
+
+Creating an agent stores its configuration. Publishing it connects it to selected eligible phone numbers for inbound use. A caller reaching a bound number is routed to the agent.
+
+Archiving or deleting can be blocked while an active campaign uses the agent. Resolve the dependency before retrying. Successful archiving or deletion disables its inbound bindings. Restoring it does not automatically republish it.
+
+## Testing
+
+A text playground tests response behavior, not the complete voice experience. After deliberate inbound publication, call a test number and check the greeting, spoken responses, and available activity. Tests and calls can incur usage.
+
+Voice flows can connect to an active AI agent through the visual builder. Configure the available continuation paths and verify them with a controlled test. Agent Tools & Actions and Policies marked coming soon are not available workflows.
+
+Review recording behavior before publication. The documented API publication path enables recording by default.
+
+Next: [Build an AI voice agent](/quickstarts/ai-voice-agent), [Inbound routing](/learn/concepts/inbound), and [Agents API](/developers/reference/agents).

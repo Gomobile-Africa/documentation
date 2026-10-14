@@ -1,0 +1,95 @@
+---
+title: "Launch your first campaign"
+description: "Connect an audience and flow, configure timing and channel resources, and safely launch a campaign."
+icon: "send"
+---
+
+A campaign applies a supported flow to the contacts enrolled from an audience. Use this checklist to move from a tested flow to a controlled launch.
+
+## Before you begin
+
+Confirm that you have:
+
+- a static or live audience with the intended contacts;
+- a saved and tested Voice or Multichannel flow;
+- an available phone number when the selected flow calls directly or invokes a Voice sub-flow;
+- enough credits for the intended activity;
+- approved organization or campaign-specific calling hours;
+- consent and operational approval required by your organization.
+
+<Warning>
+  Review the audience and flow carefully. Their binding cannot be replaced after campaign creation. A static audience launches from a membership snapshot, while a live audience can continue enrolling contacts that match its rules while the campaign runs.
+</Warning>
+
+## Create the campaign
+
+<Steps>
+  <Step title="Start a new campaign">
+    Open **Campaigns** and choose the action to create a campaign.
+  </Step>
+  <Step title="Add general information">
+    Give the campaign a clear name and objective. Use a naming convention that helps operators distinguish region, purpose, and launch period.
+  </Step>
+  <Step title="Connect the audience and flow">
+    Select the audience to enroll and the saved Voice or Multichannel flow to run.
+  </Step>
+  <Step title="Configure the schedule">
+    Set the start and optional stop timing. Review the displayed timezone before confirming operational times.
+  </Step>
+  <Step title="Choose calling hours">
+    For both Voice and Multichannel campaigns, choose organization hours, define custom hours, or deliberately choose unrestricted operation if your policy allows it.
+  </Step>
+  <Step title="Assign phone numbers">
+    If voice is required, select the available number or numbers shown by Gomobile.
+  </Step>
+  <Step title="Configure eligible retries">
+    Voice campaigns can use a fixed delay and maximum attempts or specific retry dates. Maximum attempts includes the initial call. Keep every retry within the campaign's active period.
+  </Step>
+  <Step title="Review the summary">
+    Before launch, review the current audience count, flow, timing, phone numbers, calling hours, and retry plan. After activation, check the enrolled-contact count; it can differ from the earlier audience count.
+  </Step>
+  <Step title="Save or launch">
+    Save a draft when the operation still needs review. Launch only when every setting and prerequisite is correct.
+  </Step>
+</Steps>
+
+Contact hours apply to messaging as well as voice initiation. Messages can wait for the next permitted window. Actions within an existing live call can be exempt; these settings do not establish legal compliance.
+
+## After launch
+
+Open the campaign detail to monitor status and progress. Depending on its state, you can pause, resume, stop, or remove the campaign using the actions Gomobile makes available.
+
+- **Pause** prevents new campaign work from starting. Depending on timing, work or retries already scheduled may still proceed.
+- **Resume** allows an eligible paused campaign to start new work again.
+- **Stop** cancels pending campaign work. Calls already in progress may finish.
+
+See [Understand the campaign lifecycle](/product/campaign-lifecycle) before managing a running campaign.
+
+Use these views for investigation:
+
+- **Campaign results** for enrolled contacts, settled progress, outcome buckets, tries, channel results, funnel, agent metrics, sub-flow reports, and credits.
+- **Runs** for the automation path and values used for an individual contact.
+- **Calls** for a voice interaction's source, outcome, timeline, transcript and recordings when present, and cost.
+
+## Expected result
+
+The campaign enters the selected lifecycle state. When active and inside its allowed schedule, eligible contacts begin progressing through the selected flow.
+
+## If the campaign does not start
+
+- Confirm its start time has arrived and its stop time has not passed.
+- Check that the current time is inside the selected calling hours.
+- Confirm the audience contains eligible contacts.
+- Verify that the flow is saved and valid.
+- Confirm any required phone number is assigned.
+- Check available credits.
+- Review the campaign detail for its current status and any visible failure reason.
+
+<CardGroup cols={2}>
+  <Card title="Review platform concepts" icon="waypoints" href="/product/how-gomobile-works">
+    Revisit runs, calls, tries, outcomes, and credits.
+  </Card>
+  <Card title="Build another flow" icon="git-branch" href="/getting-started/build-first-flow">
+    Improve the experience in a separate flow before using it in another campaign.
+  </Card>
+</CardGroup>

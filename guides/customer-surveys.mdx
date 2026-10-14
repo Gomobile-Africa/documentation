@@ -1,0 +1,34 @@
+---
+title: "Customer surveys"
+description: "Collect a simple keypad response during a voice call."
+icon: "book-open"
+---
+
+## Before you begin
+
+Define one question and clear response choices. Use a small static audience for the first test.
+
+<Steps>
+  <Step title="Prepare the audience">
+    [Create an audience](/quickstarts/create-audience) and review its membership and required contact data.
+  </Step>
+  <Step title="Configure the experience">
+    Build a Voice flow that says the question, collects keypad input, and branches on the supported responses. Add a path for missing or unexpected input and save responses with supported contact updates or tags.
+  </Step>
+  <Step title="Test the workflow">
+    [Save and test the flow](/getting-started/build-first-flow) with contacts and numbers you control. Check each relevant branch and required value.
+  </Step>
+  <Step title="Review and launch">
+    Follow [Launch your first campaign](/getting-started/launch-first-campaign). Check audience, flow, schedule, calling policy, and channel resources in the summary before launch.
+  </Step>
+</Steps>
+
+## Expected result and verification
+
+Inspect runs and contact fields to confirm that each tested response took the intended branch.
+
+## Troubleshooting
+
+If work does not begin, check campaign state, schedule, calling hours, audience eligibility, saved flow validity, resources, and credits. For an individual failure, inspect the run path and associated call activity.
+
+See [campaign lifecycle](/product/campaign-lifecycle) for enrollment, retries, pause, and stop behavior.

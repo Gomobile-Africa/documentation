@@ -1,146 +1,190 @@
 {
-	"$schema": "https://mintlify.com/docs.json",
-	"theme": "mint",
-	"name": "Gomobile",
-	"colors": {
-	  "primary": "#F4C16C",
-	  "light": "#F4C16C",
-	  "dark": "#F4C16C"
-	},
-	"favicon": "/logo/logo.svg",
-	"navigation": {
-	  "tabs": [
-		{
-		  "tab": "Documentation",
-		  "groups": [
-			{
-			  "group": "Introduction",
-			  "pages": [
-				"index"
-			  ]
-			},
-			{
-			  "group": "Getting Started",
-			  "pages": [
-				"getting-started/overview",
-				"getting-started/installation",
-				"getting-started/authentication",
-				"getting-started/making-your-first-call",
-				"getting-started/project-structure"
-			  ]
-			},
-			{
-			  "group": "Core Concepts",
-			  "pages": [
-				"core-concepts/overview",
-				"core-concepts/auth-api",
-				"core-concepts/api-keys",
-				"core-concepts/users",
-				"core-concepts/organizations",
-				"core-concepts/contacts",
-				"core-concepts/audiences",
-				"core-concepts/flows",
-				"core-concepts/programs",
-				"core-concepts/executions"
-			  ]
-			},
-			{
-			  "group": "Features",
-			  "pages": [
-				"features/overview",
-				"features/call-flows",
-				"features/audio-management",
-				"features/dictionaries",
-				"features/custom-attributes",
-				"features/retry-strategies",
-				"features/pause-windows",
-				"features/contact-ingestion",
-				"features/dids",
-				"features/sender-ids",
-				"features/sms",
-				"features/ad-hoc-calls",
-				"features/call-reports",
-				"features/recordings",
-				"features/credits",
-				"features/sms-programs",
-				"features/execution-reports"
-			  ]
-			},
-			{
-			  "group": "Agent Studio",
-			  "pages": [
-				"features/agent-studio/agents",
-				"features/agent-studio/voice-agents",
-				"features/agent-studio/conversations",
-				"features/agent-studio/knowledge-base",
-				"features/agent-studio/end-call-tool",
-				"features/agent-studio/resolution-criteria"
-			  ]
-			},
-			{
-			  "group": "Guides",
-			  "pages": [
-				"guides/overview",
-				"guides/building-your-first-campaign",
-				"guides/designing-call-flows",
-				"guides/managing-contacts",
-				"guides/handling-retries"
-			  ]
-			}
-	  ]
-	},
-
-	{
-	  "tab": "API Reference",
-	  "openapi": "openapi.json"
-	},
-	{
-	  "tab": "Changelog",
-	  "groups": [
-		{
-		  "group": "Changelog",
-		  "pages": [
-			"changelog/overview"
-		  ]
-		}
-	  ]
-	},
-	{
-	  "tab": "Help Center",
-		  "groups": [
-			{
-			  "group": "Help Center",
-			  "pages": [
-				"help-center/overview",
-				"help-center/faq",
-				"help-center/troubleshooting",
-				"help-center/glossary"
-			  ]
-			}
-		  ]
-		}
-	  ]
-	},
-	"logo": {
-	  "light": "/logo/gomobile.svg",
-	  "dark": "/logo/gomobile.svg"
-	},
-	"navbar": {
-	  "links": [
-		{
-		  "label": "Discord",
-		  "href": "https://discord.gg/AswfPpZg"
-		}
-	  ],
-	  "primary": {
-		"type": "button",
-		"label": "Get API Key",
-		"href": "https://docs.google.com/forms/d/1F6_7OIDNq8_lWgKPyP-DudF3dvBTl31X4dqVf5St2zE"
-	  }
-	},
-	"footer": {
-	  "socials": {
-		"linkedin": "https://www.linkedin.com/company/gomobile-africa"
-	  }
-	}
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Gomobile Documentation",
+  "description": "Learn how to manage contacts, build multichannel experiences, launch campaigns, configure AI voice agents, and integrate with the Gomobile API.",
+  "colors": {
+    "primary": "#1D4ED8",
+    "light": "#5164F1",
+    "dark": "#1A33EE"
+  },
+  "logo": {
+    "light": "/assets/gomobile-logo.svg",
+    "dark": "/assets/gomobile-logo-dark.svg"
+  },
+  "favicon": "/assets/gomobile-favicon.svg",
+  "appearance": {
+    "default": "light",
+    "strict": false
+  },
+  "background": {
+    "color": {
+      "light": "#FFFFFF",
+      "dark": "#050607"
+    }
+  },
+  "fonts": {
+    "family": "Karla"
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs",
+    "codeblocks": "system"
+  },
+  "search": {
+    "prompt": "Search"
+  },
+  "seo": {
+    "indexing": "navigable",
+    "organization": {
+      "name": "Gomobile",
+      "url": "https://gomobile.ma"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ],
+    "display": "header"
+  },
+  "markdown": {
+    "instructions": [
+      "Use Gomobile customer-facing vocabulary.",
+      "Do not infer support for internal, hidden, experimental, or unreleased features."
+    ]
+  },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "Page not found",
+      "description": "The page may have moved. Use search or return to the [documentation home](/)."
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Learn",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": [
+              "index",
+              "product/overview",
+              "product/how-gomobile-works"
+            ]
+          },
+          {
+            "group": "Core concepts",
+            "pages": [
+              "learn/concepts/organizations",
+              "learn/concepts/contacts",
+              "learn/concepts/audiences",
+              "learn/concepts/flows",
+              "learn/concepts/campaigns",
+              "learn/concepts/runs",
+              "learn/concepts/channels",
+              "learn/concepts/whatsapp",
+              "learn/concepts/agents",
+              "learn/concepts/knowledge-bases",
+              "learn/concepts/inbound",
+              "learn/concepts/audio",
+              "learn/concepts/reporting",
+              "learn/concepts/credits",
+              "learn/concepts/access"
+            ]
+          },
+          {
+            "group": "Platform overview",
+            "pages": [
+              "learn/architecture",
+              "getting-started/workspace-tour",
+              "product/campaign-lifecycle",
+              "product/responsible-use"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Build",
+        "icon": "hammer",
+        "groups": [
+          {
+            "group": "Quickstarts",
+            "pages": [
+              "getting-started/set-up-account",
+              "quickstarts/send-sms",
+              "quickstarts/make-call",
+              "quickstarts/create-contact",
+              "quickstarts/create-audience",
+              "getting-started/build-first-flow",
+              "getting-started/launch-first-campaign",
+              "quickstarts/ai-voice-agent"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "getting-started/import-contacts",
+              "guides/appointment-reminders",
+              "guides/payment-reminders",
+              "guides/customer-surveys",
+              "guides/lead-qualification",
+              "guides/retry-failed-calls",
+              "guides/large-audience-campaigns"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "icon": "square-terminal",
+        "groups": [
+          {
+            "group": "API essentials",
+            "pages": [
+              "developers/overview",
+              "developers/authentication",
+              "developers/api-basics",
+              "developers/support-boundary",
+              "developers/pagination",
+              "developers/filtering",
+              "developers/rate-limits",
+              "developers/errors",
+              "developers/versioning"
+            ]
+          },
+          {
+            "group": "API reference",
+            "pages": [
+              "developers/reference/contacts",
+              "developers/reference/audiences",
+              "developers/reference/flows",
+              "developers/reference/campaigns",
+              "developers/reference/runs-and-calls",
+              "developers/reference/inbound",
+              "developers/reference/agents",
+              "developers/reference/knowledge-bases",
+              "developers/reference/whatsapp",
+              "developers/reference/audio-and-dictionaries",
+              "developers/reference/credits",
+              "developers/reference/endpoint-catalog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Get API key",
+      "href": "/developers/authentication#create-a-key"
+    }
   }
+}

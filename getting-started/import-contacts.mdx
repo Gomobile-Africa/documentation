@@ -1,0 +1,77 @@
+---
+title: "Import contacts"
+description: "Upload a customer list, map its columns, review validation, and import valid contacts."
+icon: "file-up"
+---
+
+Use contact import to create new contacts and update existing contacts in one reviewed operation. Gomobile uses the primary phone number to match rows to contacts.
+
+## Before you begin
+
+- Put one contact on each row.
+- A header row with clear column names helps mapping, but is optional. Indicate whether your file has one.
+- Include a phone-number column. It must be mapped to **Phone number**.
+- Create any custom attributes you intend to map before starting the import.
+- If you want to add the imported contacts to an audience, create a **static audience** first. Live audience membership is controlled by rules.
+
+<Warning>
+  A row with the same primary phone number as an existing contact updates that contact. Review rows marked as updates before you import.
+</Warning>
+
+This import workflow validates Moroccan phone numbers. For a first test, prepare a CSV with the columns below and replace the synthetic phone with a Moroccan test number you control:
+
+```csv
+firstName,lastName,primaryPhone
+Sara,Test,+212600000000
+```
+
+## Import the file
+
+<Steps>
+  <Step title="Open the import wizard">
+    In **Contacts**, choose the import action to open the contact-import wizard.
+  </Step>
+  <Step title="Choose an optional audience">
+    To add successfully imported contacts to a static audience, select it before uploading the file. Leave this empty when you do not want to change audience membership.
+  </Step>
+  <Step title="Upload your customer list">
+    Drop a `.csv`, `.xlsx`, or `.xls` file into the upload area, or browse for it. Indicate whether the first row contains column names when the wizard asks.
+  </Step>
+  <Step title="Map columns">
+    Match each source column to a standard contact field or custom attribute. Choose **Ignore this column** for data that should not enter Gomobile. Map exactly one source column to **Phone number**.
+  </Step>
+  <Step title="Review the preview">
+    Use the filters to review new, existing, and invalid rows. Return to the mapping step if a column was matched incorrectly.
+  </Step>
+  <Step title="Import valid rows">
+    Start the import. Gomobile creates valid new contacts, updates valid matches, and skips invalid rows.
+  </Step>
+  <Step title="Review the result">
+    Check the created, updated, and failed counts. If rows failed, download the failed-row file, correct the data, and import those rows again.
+  </Step>
+</Steps>
+
+## Expected result
+
+Valid rows appear in Contacts. Existing contacts matched by primary phone contain the imported updates. After import, review the contact results and separately check membership in the selected static audience. Contacts can import successfully even if audience linking fails.
+
+## Common validation problems
+
+| Problem | Resolution |
+| --- | --- |
+| Primary phone is missing | Supply a phone number and ensure its column maps to Phone number |
+| Phone number is invalid | Use an accepted Moroccan `+212` or local format and remove unintended text; confirm support before importing international numbers |
+| Duplicate phone appears in the same file | Keep one intended row for that number; duplicates within one upload are validation errors |
+| Email is invalid | Correct or remove the email value |
+| Date is invalid | Use `DD/MM/YYYY` or `YYYY-MM-DD`, such as `15/01/2026` |
+| Boolean is invalid | Use `true`/`false`, `yes`/`no`, or `1`/`0` |
+| Enum value is not allowed | Use one of the values configured on the custom attribute |
+| Session expired | Upload the file again and repeat validation; sessions expire after 30 minutes of inactivity |
+
+<Note>
+  The upload control accepts CSV, XLSX, and XLS files up to 50 MiB, containing at most 100,000 rows (including a header row if present). Some interface text may still refer only to CSV.
+</Note>
+
+<Card title="Build your first flow" icon="git-branch" href="/getting-started/build-first-flow" horizontal>
+  Create the automation that will run for contacts in your audience.
+</Card>

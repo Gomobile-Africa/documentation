@@ -1,0 +1,266 @@
+---
+title: "Runs and Calls API"
+description: "List flow runs, request outbound calls, inspect call reports, and export filtered activity."
+icon: "activity"
+---
+
+Runs describe automation execution. Calls describe individual voice legs created by campaigns, ad-hoc requests, inbound routes, forwarding, or flow sub-runs. All endpoints on this page accept Admin, Manager, and Agent API keys.
+
+## Endpoint summary
+
+| Method | Path | Purpose | Side effect |
+| --- | --- | --- | --- |
+| `GET` | `/executions` | List organization runs | Reads activity and contact data |
+| `GET` | `/flows/executions/:id` | Get a run report | Reads variables, failures, messages, and costs |
+| `POST` | `/calls/request` | Request a standalone outbound call | Places a real call and consumes credits |
+| `GET` | `/calls` | List voice legs | Reads phone numbers and outcomes |
+| `GET` | `/calls/:id` | Get a detailed call report | Can expose transcripts and recording metadata |
+| `POST` | `/calls/export` | Queue a filtered CSV export | Creates a file containing customer activity |
+| `GET` | `/calls/exports/:id` | Poll an export | Can return a short-lived download URL |
+
+## List organization runs
+
+`GET /executions`
+
+| Query | Meaning |
+| --- | --- |
+| `page`, `limit`, `search` | Standard pagination and contact name/phone search |
+| `flow`, `contact`, `campaign`, `binding` | UUID scope filters |
+| `status` | Comma-separated run statuses |
+| `triggeredBy` | Comma-separated triggers: `manual_test`, `manual_api`, `audience`, `webhook`, `cron`, or `inbound` |
+| `callOutcome` | Comma-separated call outcomes |
+| `from`, `to` | Inclusive ISO date-time bounds |
+| `includeTests` | `true` to include manual tests; default `false` |
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/executions" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "campaign=$CAMPAIGN_ID" \
+  --data-urlencode "status=completed,failed" \
+  --data-urlencode "includeTests=false" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Example list item:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174500",
+  "flowId": "123e4567-e89b-42d3-a456-426614174200",
+  "flowName": "API integration test",
+  "status": "completed",
+  "triggeredBy": "manual_api",
+  "contact": {
+    "id": "123e4567-e89b-42d3-a456-426614174000",
+    "name": "Sara Test",
+    "phone": "+212600000000"
+  },
+  "channelType": "agnostic",
+  "startedAt": "2026-10-01T10:00:00.000Z",
+  "completedAt": "2026-10-01T10:00:02.000Z",
+  "failure": null,
+  "leg": null,
+  "messages": { "sent": 0, "failed": 0 },
+  "children": [],
+  "campaignId": null,
+  "bindingId": null,
+  "parentExecutionId": null
+}
+```
+
+Response: `200` with `{ data, meta }`. Clients must tolerate new run statuses, triggers, and failure reasons.
+
+Tests are hidden by default. Set `includeTests=true` to include them; explicitly filtering `triggeredBy=manual_test` also selects test runs. Use `contact` here, rather than the `contactId` parameter accepted by the flow-specific run list.
+
+## Get a run report
+
+`GET /flows/executions/:id`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/flows/executions/$EXECUTION_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+The response includes:
+
+- `execution`: status, trigger, contact, timestamps, failure, request variables, final non-system variables, graph hash, and campaign/binding/parent links;
+- `nodeRuns`: ordered node-level execution facts;
+- `children`: direct sub-flow runs;
+- `leg`: the run's own call outcome when present;
+- `messages`: SMS and WhatsApp activity;
+- cost items and total; and
+- `nextReadInMs` for polling.
+
+A null polling interval means this execution and its own call leg meet the endpoint’s settlement check. It does not guarantee that every child execution or asynchronous enrichment is complete.
+
+Example partial response:
+
+```json
+{
+  "execution": {
+    "id": "123e4567-e89b-42d3-a456-426614174500",
+    "flowId": "123e4567-e89b-42d3-a456-426614174200",
+    "flowName": "API integration test",
+    "channelType": "agnostic",
+    "status": "completed",
+    "triggeredBy": "manual_api",
+    "contact": {
+      "id": "123e4567-e89b-42d3-a456-426614174000",
+      "name": "Sara Test",
+      "phone": "+212600000000"
+    },
+    "requestVariables": { "integrationRun": "test-001" },
+    "variables": { "integrationRun": "test-001" },
+    "graphChanged": false,
+    "campaign": null,
+    "binding": null,
+    "parent": null
+  },
+  "nodeRuns": [],
+  "children": [],
+  "leg": null,
+  "messages": [],
+  "cost": { "items": [], "total": "0.0000" },
+  "nextReadInMs": null
+}
+```
+
+## Request an outbound call
+
+`POST /calls/request`
+
+This asynchronous endpoint creates a run for a Voice (`call`) flow and wakes the call driver.
+
+| Field | Required | Rules |
+| --- | --- | --- |
+| `flowId` | Yes | Must identify a `call` flow |
+| `contactId` | Yes | Must identify an organization contact with a primary phone |
+| `didId` | Yes | Must identify an active organization caller number |
+| `timeoutMs` | Yes | 5,000–120,000 milliseconds |
+| `enableAMD` | Yes | Enables answering-machine detection |
+| `recordCall` | No | Full-call recording; platform default when omitted |
+| `variables` | No | Per-request values; `system.*` is reserved |
+| `retry` | No | Fixed-delay or scheduled retry policy |
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/calls/request" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "flowId": "'"$FLOW_ID"'",
+    "contactId": "'"$CONTACT_ID"'",
+    "didId": "'"$DID_ID"'",
+    "timeoutMs": 30000,
+    "enableAMD": true,
+    "recordCall": false,
+    "variables": { "integrationRun": "call-test-001" }
+  }'
+```
+
+Example `201` response:
+
+```json
+{ "executionId": "123e4567-e89b-42d3-a456-426614174500" }
+```
+
+<Warning>
+  This places a real outbound call and consumes credits. Use an approved test contact, caller number, Voice flow, calling time, and consent process. Setting `recordCall: true` adds recording obligations.
+</Warning>
+
+Poll `GET /flows/executions/:id` for the outcome. Repeated `POST` requests can create additional calls. Check the original run before retrying a request whose result is uncertain.
+
+## List calls
+
+`GET /calls`
+
+Query parameters include standard pagination/search/sort plus:
+
+- `outcome`;
+- inclusive `from` and `to` ISO timestamps;
+- `source` (`campaign`, `adhoc`, `forward`, or `inbound`);
+- `contactId`, `campaignId`, `didId`, `bindingId`, `flowId`, `agentId`, or `audienceId`; and
+- `hasRecording=true|false`.
+
+Supported sort fields are `startedAt`, `durationMs`, and `contactName`. Newest calls appear first by default.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/calls" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "contactId=$CONTACT_ID" \
+  --data-urlencode "from=2026-10-01T00:00:00Z" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Example list item:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174600",
+  "direction": "outbound",
+  "source": "adhoc",
+  "contactId": "123e4567-e89b-42d3-a456-426614174000",
+  "contactName": "Sara Test",
+  "phone": "+212600000000",
+  "outcome": "completed",
+  "outcomeReason": "contact_hung_up",
+  "startedAt": "2026-10-01T10:00:00.000Z",
+  "durationMs": 42000,
+  "attempt": 1,
+  "maxAttempts": 1
+}
+```
+
+## Get a call report
+
+`GET /calls/:id`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/calls/$CALL_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with leg facts, derived outcome, merged technical and node-run timeline, recording metadata, cost breakdown, and the flow or agent context that drove the call. Returns `404 CALL_NOT_FOUND` for an unknown or cross-organization call.
+
+<Warning>
+  A call report can contain phone numbers, transcripts, facts, and recording metadata. Automated transcripts can be inaccurate. Review recordings through the available call details in Gomobile.
+</Warning>
+
+## Export calls
+
+`POST /calls/export`
+
+The body accepts the same filters as `GET /calls` plus `search`, but no pagination or sorting. The entire filtered set is exported newest-first.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/calls/export" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contactId": "'"$CONTACT_ID"'",
+    "from": "2026-10-01T00:00:00Z",
+    "to": "2026-10-31T23:59:59Z"
+  }'
+```
+
+The `201` response contains the export ID and initial status. An overly broad export can return `422 CALL_EXPORT_TOO_LARGE`.
+
+Poll it with:
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/calls/exports/$EXPORT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+When status becomes `completed`, the response includes a short-lived presigned download URL. Store the downloaded CSV securely; it contains the full matching set rather than one page.
+
+<Card title="Endpoint catalog" icon="list" href="/developers/reference/endpoint-catalog" horizontal>
+  Find the documented operations for each resource.
+</Card>
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

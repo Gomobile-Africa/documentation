@@ -1,0 +1,91 @@
+---
+title: "Build and test your first flow"
+description: "Create a small Voice or Multichannel flow, save it, and run a safe test."
+icon: "git-branch"
+---
+
+A flow defines the steps Gomobile performs. Start small so that you can verify the path and resulting activity before using it in a campaign.
+
+## Choose a flow type
+
+| Type | Choose it when |
+| --- | --- |
+| Voice flow | The experience happens during a call, such as playing audio, speaking text, collecting keypad input, branching, forwarding, recording a segment, ending the call, or connecting to an AI agent |
+| Multichannel flow | You need conditions, contact updates, tags, SMS, approved WhatsApp templates, or a handoff to a Voice flow |
+
+The flow type cannot be changed after creation.
+
+## Before you begin
+
+- Prepare one verified test number or a synthetic test contact.
+- Confirm that the required caller number, sender ID, WhatsApp template, audio, or sub-flow is available.
+- Check your available credits.
+- Avoid real customer data while learning the builder.
+
+## Build the flow
+
+<Steps>
+  <Step title="Create a flow">
+    Open **Flows**, choose **New flow**, then select **Voice flow** or **Multichannel flow**.
+  </Step>
+  <Step title="Name the flow">
+    Enter a name that describes the outcome, such as `Appointment confirmation — Casablanca`.
+  </Step>
+  <Step title="Add the first action">
+    Add a supported step from the builder menu. For a first Voice flow, a **Text to speech** step is easy to verify. Enter “This is a Gomobile test call,” review the voice settings, and connect it into the flow. For a first Multichannel flow, use a simple contact update, tag, or condition that is safe for the test contact.
+  </Step>
+  <Step title="Connect the path">
+    Connect each step through its output. Configure every required field and confirm that the intended path has no accidental gaps.
+  </Step>
+  <Step title="Save the flow">
+    Choose **Save**. If Gomobile reports validation problems, open the save-error details, correct each affected step, and save again.
+  </Step>
+</Steps>
+
+## Test the saved flow
+
+<Steps>
+  <Step title="Open Test">
+    Choose **Test** in the flow editor. Gomobile explains that the saved flow will run for real.
+  </Step>
+  <Step title="Choose a direction when available">
+    Use **Call the contact** for an outbound test. **Wait for a call** is available only when the Voice flow has an active inbound binding.
+  </Step>
+  <Step title="Choose the target and caller">
+    Select your verified phone number or a synthetic contact. For an outbound Voice flow, choose an available caller ID.
+  </Step>
+  <Step title="Review values">
+    Check every value the flow reads. A missing value can cause the run to fail if it reaches that step.
+  </Step>
+  <Step title="Start the test">
+    Confirm the target and start. Answer the test call or observe the selected channel action.
+  </Step>
+  <Step title="Inspect the run">
+    Open the resulting run to confirm which steps executed, what messages or call legs were created, and how many credits were used.
+  </Step>
+</Steps>
+
+<Warning>
+  A flow test can call a phone number, send messages, and consume credits. It is not a simulation.
+</Warning>
+
+<Note>
+  Voice flows can connect to an active AI agent. Configure its available continuation paths and test the result before using it in a campaign. Only Multichannel flows can invoke a Voice sub-flow; Voice flows cannot invoke sub-flows.
+</Note>
+
+## Expected result
+
+The flow is saved, the test creates a run, and the run timeline shows the path taken through the configured steps.
+
+## If you cannot test
+
+- Give the flow a name and a valid start path.
+- Save all changes before reopening Test.
+- Check that your profile has a verified phone number or choose a contact.
+- Select an available caller ID for outbound voice.
+- Confirm the organization has enough credits.
+- Supply values required by each step.
+
+<Card title="Launch your first campaign" icon="send" href="/getting-started/launch-first-campaign" horizontal>
+  Connect a tested flow to an audience and prepare the campaign launch.
+</Card>

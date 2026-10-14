@@ -1,0 +1,15 @@
+---
+title: "Versioning and idempotency"
+description: "Understand the shared API behavior and endpoint-specific limits."
+icon: "braces"
+---
+
+To avoid duplicate work when retrying requests:
+
+- a repeated `POST` can create or trigger work again;
+- use returned resource IDs to follow the original operation;
+- do not retry a timed-out mutation automatically without first checking its result.
+
+Handle unfamiliar response values without assuming they have the same meaning as existing ones.
+
+See [API basics](/developers/api-basics) for setup and request conventions.

@@ -1,0 +1,208 @@
+---
+title: "Knowledge Bases API"
+description: "Create knowledge bases, upload documents, and monitor asynchronous indexing safely."
+icon: "library"
+---
+
+Knowledge Base routes accept Admin, Manager, and Agent API keys. They store and process customer files. Use synthetic documents for initial tests and restrict access to sensitive content.
+
+## Endpoint summary
+
+| Method | Path | Purpose | Side effect |
+| --- | --- | --- | --- |
+| `POST` | `/knowledge-bases` | Create a knowledge base | Creates configuration |
+| `GET` | `/knowledge-bases` | List knowledge bases | None |
+| `GET` | `/knowledge-bases/:id` | Get details and attachment count | None |
+| `PATCH` | `/knowledge-bases/:id` | Update name or description | Changes metadata |
+| `DELETE` | `/knowledge-bases/:id` | Delete the knowledge base and its documents | Destructive data deletion |
+| `POST` | `/knowledge-bases/:kbId/documents` | Upload a document | Stores, scans, parses, chunks, and indexes a file |
+| `GET` | `/knowledge-bases/:kbId/documents` | List documents | None |
+| `GET` | `/knowledge-bases/:kbId/documents/:docId` | Get processing status | None |
+| `DELETE` | `/knowledge-bases/:kbId/documents/:docId` | Delete a document and vectors | Destructive data deletion |
+| `POST` | `/knowledge-bases/:kbId/documents/:docId/reprocess` | Retry a failed document | Starts asynchronous processing |
+
+## Create a knowledge base
+
+`POST /knowledge-bases`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/knowledge-bases" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "API test knowledge base",
+    "description": "Synthetic staging documents"
+  }'
+```
+
+`name` is required and must contain 1–128 characters. `description` is optional and limited to 2,000 characters. Use the platform defaults for document processing.
+
+Example `201` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174800",
+  "organizationId": "123e4567-e89b-42d3-a456-426614174999",
+  "name": "API test knowledge base",
+  "description": "Synthetic staging documents",
+  "status": "active",
+  "embeddingModel": "google/gemini-embedding-001",
+  "chunkConfig": null,
+  "documentCount": 0,
+  "attachedAgentCount": 0,
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z",
+  "createdBy": null
+}
+```
+
+When `embeddingModel` is omitted, the default is `google/gemini-embedding-001`. Read the returned configuration rather than assuming all knowledge bases use the same model.
+
+## List and retrieve knowledge bases
+
+`GET /knowledge-bases` supports `page`, `limit`, `search`, `sortBy`, `sortOrder`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/knowledge-bases" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Response: `200` with `{ data, meta }`. `GET /knowledge-bases/:id` returns one object and its current `documentCount` and `attachedAgentCount`.
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+## Update or delete
+
+Use `PATCH /knowledge-bases/:id` to update `name` and `description`.
+
+```bash
+curl -X PATCH "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "description": "Updated synthetic product guide" }'
+```
+
+`DELETE /knowledge-bases/:id` removes the knowledge base from active use and attempts cleanup of its associated document resources. Deletion is blocked while the knowledge base is attached to an agent. Follow your organization’s retention and deletion procedures. The response is:
+
+```json
+{ "message": "Knowledge base deleted successfully" }
+```
+
+Treat deletion as irreversible through the API. Detach or update any dependent agents before deleting a knowledge base.
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Deletion returns `409` while one or more agents still use the knowledge base.
+
+## Upload a document
+
+`POST /knowledge-bases/:kbId/documents`
+
+Send `multipart/form-data` with the required part `file`.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID/documents" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -F "file=@./synthetic-product-guide.pdf"
+```
+
+The API accepts plain text, Markdown, and PDF files up to 10 MiB, with at most 100 documents per knowledge base.
+
+Example `202` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174810",
+  "knowledgeBaseId": "123e4567-e89b-42d3-a456-426614174800",
+  "fileName": "synthetic-product-guide.pdf",
+  "fileType": "pdf",
+  "fileSize": null,
+  "status": "waiting_for_scan",
+  "processingStep": null,
+  "chunkCount": 0,
+  "failureReason": null,
+  "errorMessage": null,
+  "scanStatus": null,
+  "scanResultAt": null,
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z"
+}
+```
+
+`fileType` is the document extension, such as `pdf`, `txt`, or `md`. The upload response can contain `null` metadata that later detail or list reads supply, including file size and scan information.
+
+Upload is asynchronous. A successful `202` means the file was accepted, not that it is ready for retrieval.
+
+## Monitor processing
+
+`GET /knowledge-bases/:kbId/documents/:docId`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID/documents/$DOCUMENT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Document status progresses through values including `uploading`, `waiting_for_scan`, `processing`, and `ready`. Terminal problems are `failed` or `blocked`. While processing, `processingStep` can be `parsing`, `chunking`, `embedding`, or `upserting`.
+
+Stable failure reasons are:
+
+- `scan_blocked`: malware scanning refused the file; it cannot be retried;
+- `scan_unavailable`;
+- `unsupported_content`;
+- `no_extractable_text`; and
+- `indexing_error`.
+
+Do not poll aggressively. Back off between reads and stop at `ready`, `failed`, or `blocked`.
+
+List documents with optional `status` and standard pagination/sort parameters:
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID/documents" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Response: `200` with `{ data, meta }`, where each item uses the document schema shown in the upload response and can additionally include file size and scan facts.
+
+## Reprocess or delete a document
+
+`POST /knowledge-bases/:kbId/documents/:docId/reprocess` returns `202` and can be used only for a failed document. A scan-blocked document cannot be reprocessed.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID/documents/$DOCUMENT_ID/reprocess" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+`DELETE /knowledge-bases/:kbId/documents/:docId` deletes the document from active use and removes its retrieval vectors. A successful response does not establish complete erasure of every stored copy.
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/knowledge-bases/$KB_ID/documents/$DOCUMENT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Delete returns `200` with `{ "message": "Document deleted successfully" }`.
+
+## Privacy and testing
+
+<Warning>
+  Uploaded documents can contain confidential information and personal data. Follow your organization’s policies for access, retention, and deletion. Never upload credentials or secrets.
+</Warning>
+
+Use a synthetic `.txt`, `.md`, or `.pdf` file for the first test. Verify that it reaches `ready`, attach it only to a compatible test agent, and delete it after testing when retention is not required.
+
+All examples require `X-API-Key`. Common failures are `400` for invalid files, `404` for unknown or cross-workspace IDs, `409` for an invalid reprocess state, and `413` when upload middleware rejects size.
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

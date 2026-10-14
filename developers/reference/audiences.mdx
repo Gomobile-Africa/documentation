@@ -1,0 +1,274 @@
+---
+title: "Audiences API"
+description: "Create static and live audiences and manage their contact membership."
+icon: "users-round"
+---
+
+The Audiences API is available to Admin, Manager, and Agent API keys. An audience belongs to the API key's organization and has an immutable type: `static` or `live`.
+
+## Endpoint summary
+
+| Method | Path | Purpose | Side effect |
+| --- | --- | --- | --- |
+| `GET` | `/audience` | List audiences | None |
+| `GET` | `/audience/:id` | Get an audience and counts | None |
+| `GET` | `/audience/:id/contacts` | List current or exited members | Reads contact PII |
+| `POST` | `/audience` | Create a static or live audience | Creates data; live rules can add members |
+| `POST` | `/audience/preview` | Count contacts matching rules | None |
+| `POST` | `/audience/:id/add-contacts` | Add members to a static audience | Changes membership |
+| `POST` | `/audience/:id/remove-contacts` | Remove members from a static audience | Changes membership |
+| `PUT` | `/audience/:id` | Rename or update live rules | Can recalculate membership |
+| `DELETE` | `/audience/:id` | Delete an unused audience | Destructive; blocked when linked to a campaign |
+
+## Audience response
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174100",
+  "organizationId": "123e4567-e89b-42d3-a456-426614174001",
+  "name": "Casablanca test contacts",
+  "description": "Synthetic integration audience",
+  "type": "static",
+  "rules": null,
+  "contactCount": 2,
+  "linkedCampaignsCount": 0,
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z"
+}
+```
+
+`contactCount` counts active membership. `linkedCampaignsCount` counts non-deleted campaigns that reference the audience.
+
+## List audiences
+
+`GET /audience`
+
+Query parameters: `page`, `limit`, `search`, `sortBy`, and `sortOrder`. Search covers name and description; supported sort fields are `name`, `createdAt`, and `updatedAt`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/audience" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20" \
+  --data-urlencode "search=test"
+```
+
+Response: `200` with the standard `{ data, meta }` envelope.
+
+## Get an audience
+
+`GET /audience/:id`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with the audience response. Returns `404` when the audience is not in the key's organization.
+
+## List audience contacts
+
+`GET /audience/:id/contacts`
+
+This endpoint returns the same contact list items as `GET /contact` and therefore exposes contact PII.
+
+| Query | Description |
+| --- | --- |
+| `page`, `limit`, `search`, `sortBy`, `sortOrder` | Standard contact pagination and filtering |
+| `include=customAttributes` | Embeds contact attribute values |
+| `membershipStatus=active` | Current members; default |
+| `membershipStatus=exited` | Contacts that stopped matching a live audience |
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID/contacts" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "membershipStatus=active" \
+  --data-urlencode "include=customAttributes"
+```
+
+Response: `200` with `{ data, meta }`; `404` for an unknown audience.
+
+## Create a static audience
+
+`POST /audience`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audience" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Casablanca test contacts",
+    "description": "Synthetic integration audience",
+    "type": "static"
+  }'
+```
+
+Response: `201` with the audience and zero initial contacts. Omitting `type` also creates a static audience.
+
+## Live-audience rule schema
+
+A live audience requires a rule group. Groups use `AND` or `OR`. Maximum rule-tree depth is three, counting the root group and condition nodes. A root group containing a subgroup containing conditions reaches this limit; another subgroup would exceed it.
+
+```json
+{
+  "type": "group",
+  "operator": "AND",
+  "children": [
+    {
+      "type": "condition",
+      "attributeName": "contact.city",
+      "operator": "equals",
+      "value": "Casablanca"
+    },
+    {
+      "type": "condition",
+      "attributeName": "custom.customer_tier",
+      "operator": "equals",
+      "value": "test"
+    }
+  ]
+}
+```
+
+Operators: `equals`, `not_equals`, `is_empty`, `is_not_empty`, `gt`, `gte`, `lt`, `lte`, `contains`, and `not_contains`. Comparison operators are limited to compatible types; `contains` is for text-like fields. `is_empty` and `is_not_empty` take no value.
+
+## Preview live rules
+
+`POST /audience/preview`
+
+Preview creates nothing and returns the number of contacts matching now.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audience/preview" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rules": {
+      "type": "group",
+      "operator": "AND",
+      "children": [
+        {
+          "type": "condition",
+          "attributeName": "contact.city",
+          "operator": "equals",
+          "value": "Casablanca"
+        }
+      ]
+    }
+  }'
+```
+
+Example `201` response:
+
+```json
+{ "count": 42 }
+```
+
+## Create a live audience
+
+`POST /audience`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audience" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Casablanca contacts",
+    "type": "live",
+    "rules": {
+      "type": "group",
+      "operator": "AND",
+      "children": [
+        {
+          "type": "condition",
+          "attributeName": "contact.city",
+          "operator": "equals",
+          "value": "Casablanca"
+        }
+      ]
+    }
+  }'
+```
+
+After creating a live audience, use `GET /audience/:id` or `GET /audience/:id/contacts` to confirm membership. The create response currently reports `contactCount: 0` even when the initial evaluation finds matching contacts.
+
+Side effect: evaluates organization contacts and manages memberships automatically. When a live audience drives an active campaign, contacts that begin matching can be enrolled into real campaign activity.
+
+## Add contacts to a static audience
+
+`POST /audience/:id/add-contacts`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID/add-contacts" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contacts": [
+      "123e4567-e89b-42d3-a456-426614174000",
+      "123e4567-e89b-42d3-a456-426614174002"
+    ]
+  }'
+```
+
+Example `201` response:
+
+```json
+{ "added": 2, "skipped": 0 }
+```
+
+Contacts already present, deleted, or outside the organization are skipped. A live audience returns `409` because its membership is rule-managed.
+
+## Remove contacts from a static audience
+
+`POST /audience/:id/remove-contacts`
+
+The request schema is the same `{ "contacts": [<uuid>] }` array.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID/remove-contacts" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "contacts": ["123e4567-e89b-42d3-a456-426614174000"] }'
+```
+
+Example `201` response:
+
+```json
+{ "removed": 1, "skipped": 0 }
+```
+
+## Update an audience
+
+`PUT /audience/:id`
+
+Request fields: optional `name`, `description`, and `rules`. Rules apply only to a live audience and trigger full re-evaluation.
+
+```bash
+curl -X PUT "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "description": "Updated integration audience" }'
+```
+
+Response: `200` with the updated audience. Side effect: changing live rules can add and exit members and can affect enrollment in a running campaign.
+
+## Delete an audience
+
+`DELETE /audience/:id`
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/audience/$AUDIENCE_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with the deleted audience. Returns `409` when one or more non-deleted campaigns reference it. This is destructive; list or retrieve the audience and confirm `linkedCampaignsCount` before deletion.
+
+<Card title="Flows API" icon="git-branch" href="/developers/reference/flows" horizontal>
+  Create an automation and run it against a synthetic contact.
+</Card>
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

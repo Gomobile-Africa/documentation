@@ -1,0 +1,30 @@
+---
+title: "Credits API"
+description: "Read the workspace credit balance with an Admin API key."
+icon: "circle-dollar-sign"
+---
+
+The credit-balance endpoint requires an **Admin** API key. Manager and Agent keys receive `403`. Human workspace owners and administrators can manage keys, but `owner` is not an API-key role.
+
+The endpoint is read-only. It does not add credits and does not publish pricing or deduction rules.
+
+## Get the balance
+
+`GET /credits/balance`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/credits/balance" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Example `200` response:
+
+```json
+{ "balance": 125.5 }
+```
+
+Treat the numeric balance as the current platform value. Do not infer a currency conversion, per-call price, or billing commitment from this response.
+
+## Troubleshooting
+
+Common balance failures are `401` for an invalid key and `403` for a Manager or Agent key.

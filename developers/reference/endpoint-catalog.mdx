@@ -1,0 +1,196 @@
+---
+title: "API endpoint catalog"
+description: "Find the resource references and confirm support for your integration."
+icon: "list"
+---
+
+Find the API operations documented in this reference. Authenticate requests with `X-API-Key`; access depends on the key’s role and enabled services.
+
+## Resource references
+
+| Area | Documented operations | Reference |
+| --- | --- | --- |
+| Contacts | Contact CRUD/upsert/interactions, custom attributes, and ingestion | [Contacts API](/developers/reference/contacts) |
+| Audiences | CRUD, membership, rules, and preview | [Audiences API](/developers/reference/audiences) |
+| Flows | CRUD, run inputs, run/cancel, run report, and funnel | [Flows API](/developers/reference/flows) |
+| Campaigns | Drafts, lifecycle, reports, contact results, and funnel | [Campaigns API](/developers/reference/campaigns) |
+| Runs and calls | Organization runs, call request/list/detail, and exports | [Runs and Calls API](/developers/reference/runs-and-calls) |
+| Inbound | Existing binding report and flow-binding funnel | [Inbound API](/developers/reference/inbound) |
+| Agents | Options, CRUD, lifecycle, text test, and inbound publication | [Agents API](/developers/reference/agents) |
+| Knowledge bases | CRUD, document upload/status/reprocess/delete | [Knowledge Bases API](/developers/reference/knowledge-bases) |
+| WhatsApp | Channel status and template lifecycle | [WhatsApp API](/developers/reference/whatsapp) |
+| Audio and dictionaries | Reusable WAV assets and pronunciation dictionaries | [Audio and Dictionaries API](/developers/reference/audio-and-dictionaries) |
+| Credits | Admin-only balance read | [Credits API](/developers/reference/credits) |
+
+See [API access and support](/developers/support-boundary) for connection requirements and help with integration needs not covered here.
+
+## Endpoint index
+
+### Contacts API
+
+| Method | Endpoint |
+| --- | --- |
+| `GET` | `/custom-attributes` |
+| `GET` | `/custom-attributes/:customAttributeId` |
+| `POST` | `/custom-attributes` |
+| `PUT` | `/custom-attributes/:id` |
+| `DELETE` | `/custom-attributes/:id` |
+| `GET` | `/contact` |
+| `GET` | `/contact/:id` |
+| `POST` | `/contact` |
+| `POST` | `/contact/upsert` |
+| `PUT` | `/contact/:id` |
+| `DELETE` | `/contact/:id` |
+| `GET` | `/contact/:id/interactions` |
+| `POST` | `/contact/ingestion/upload` |
+| `POST` | `/contact/ingestion/validate` |
+| `GET` | `/contact/ingestion/validate/:sessionId` |
+| `POST` | `/contact/ingestion/execute` |
+
+### Audiences API
+
+| Method | Endpoint |
+| --- | --- |
+| `GET` | `/audience` |
+| `GET` | `/audience/:id` |
+| `GET` | `/audience/:id/contacts` |
+| `POST` | `/audience` |
+| `POST` | `/audience/preview` |
+| `POST` | `/audience/:id/add-contacts` |
+| `POST` | `/audience/:id/remove-contacts` |
+| `PUT` | `/audience/:id` |
+| `DELETE` | `/audience/:id` |
+
+### Flows API
+
+| Method | Endpoint |
+| --- | --- |
+| `POST` | `/flows` |
+| `GET` | `/flows` |
+| `GET` | `/flows/:id` |
+| `PUT` | `/flows/:id` |
+| `DELETE` | `/flows/:id` |
+| `GET` | `/flows/:id/run-inputs` |
+| `POST` | `/flows/:id/run` |
+| `POST` | `/flows/executions/:id/cancel` |
+| `GET` | `/flows/:id/executions` |
+| `GET` | `/flows/executions/:id` |
+| `GET` | `/flows/:id/funnel` |
+
+### Campaigns API
+
+| Method | Endpoint |
+| --- | --- |
+| `POST` | `/campaigns` |
+| `GET` | `/campaigns` |
+| `GET` | `/campaigns/:id` |
+| `PATCH` | `/campaigns/:id` |
+| `POST` | `/campaigns/:id/activate` |
+| `POST` | `/campaigns/:id/pause` |
+| `POST` | `/campaigns/:id/resume` |
+| `POST` | `/campaigns/:id/stop` |
+| `DELETE` | `/campaigns/:id` |
+| `GET` | `/campaigns/:id/report` |
+| `GET` | `/campaigns/:id/report/contacts` |
+| `GET` | `/campaigns/:id/funnel` |
+
+### Runs and Calls API
+
+| Method | Endpoint |
+| --- | --- |
+| `GET` | `/executions` |
+| `GET` | `/flows/executions/:id` |
+| `POST` | `/calls/request` |
+| `GET` | `/calls` |
+| `GET` | `/calls/:id` |
+| `POST` | `/calls/export` |
+| `GET` | `/calls/exports/:id` |
+
+### Inbound API
+
+| Method | Endpoint |
+| --- | --- |
+| `GET` | `/did-bindings/:id/report` |
+| `GET` | `/did-bindings/:id/funnel` |
+
+### Agents API
+
+| Method | Endpoint |
+| --- | --- |
+| `GET` | `/agents` |
+| `POST` | `/agents` |
+| `GET` | `/agents/:id` |
+| `PATCH` | `/agents/:id` |
+| `DELETE` | `/agents/:id` |
+| `POST` | `/agents/:id/activate` |
+| `POST` | `/agents/:id/archive` |
+| `POST` | `/agents/:id/restore` |
+| `GET` | `/agents/:id/available-dids` |
+| `POST` | `/agents/:id/publish` |
+| `POST` | `/agents/:id/unpublish` |
+| `POST` | `/agents/:id/test` |
+| `GET` | `/agents/options/stt` |
+| `GET` | `/agents/options/llm` |
+| `GET` | `/agents/options/tts` |
+| `GET` | `/agents/options/tts/:providerId/:modelId/voices` |
+| `GET` | `/agents/options/realtime` |
+
+### Knowledge Bases API
+
+| Method | Endpoint |
+| --- | --- |
+| `POST` | `/knowledge-bases` |
+| `GET` | `/knowledge-bases` |
+| `GET` | `/knowledge-bases/:id` |
+| `PATCH` | `/knowledge-bases/:id` |
+| `DELETE` | `/knowledge-bases/:id` |
+| `POST` | `/knowledge-bases/:kbId/documents` |
+| `GET` | `/knowledge-bases/:kbId/documents` |
+| `GET` | `/knowledge-bases/:kbId/documents/:docId` |
+| `DELETE` | `/knowledge-bases/:kbId/documents/:docId` |
+| `POST` | `/knowledge-bases/:kbId/documents/:docId/reprocess` |
+
+### WhatsApp API
+
+| Method | Endpoint |
+| --- | --- |
+| `GET` | `/whatsapp/channel` |
+| `GET` | `/whatsapp/templates` |
+| `POST` | `/whatsapp/templates` |
+| `GET` | `/whatsapp/templates/:id` |
+| `PUT` | `/whatsapp/templates/:id` |
+| `DELETE` | `/whatsapp/templates/:id` |
+| `POST` | `/whatsapp/templates/refresh` |
+| `POST` | `/whatsapp/templates/media` |
+| `POST` | `/whatsapp/templates/:id/send-test` |
+
+### Audio and Dictionaries API
+
+| Method | Endpoint |
+| --- | --- |
+| `POST` | `/audio-management/upload` |
+| `GET` | `/audio-management/audios` |
+| `GET` | `/audio-management/audio/:id` |
+| `GET` | `/audio-management/audio/:id/metadata` |
+| `GET` | `/audio-management/audio/:id/details` |
+| `PUT` | `/audio-management/audio/:id` |
+| `GET` | `/audio-management/audio/:id/playback-url` |
+| `GET` | `/audio-management/audios/usage/:usageType` |
+| `DELETE` | `/audio-management/audio/:id` |
+| `POST` | `/dictionaries` |
+| `GET` | `/dictionaries` |
+| `GET` | `/dictionaries/:dictionaryId` |
+| `PATCH` | `/dictionaries/:dictionaryId` |
+| `DELETE` | `/dictionaries/:dictionaryId` |
+| `GET` | `/dictionaries/:dictionaryId/entries` |
+| `POST` | `/dictionaries/:dictionaryId/entries` |
+| `GET` | `/dictionaries/:dictionaryId/entries/:key` |
+| `GET` | `/dictionaries/:dictionaryId/entries/:key/audio` |
+| `DELETE` | `/dictionaries/:dictionaryId/entries/:key` |
+
+### Credits API
+
+| Method | Endpoint |
+| --- | --- |
+| `GET` | `/credits/balance` |
+

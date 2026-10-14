@@ -1,0 +1,64 @@
+---
+title: "Use customer data and channels responsibly"
+description: "Protect contact data, credentials, recordings, transcripts, and communication consent when using Gomobile."
+icon: "shield-check"
+---
+
+Gomobile workflows can process personal data and create real communications. Your organization is responsible for deciding what data it may use, who it may contact, and which notices, consent, access controls, and retention rules apply.
+
+<Warning>
+  Calls, messages, recordings, transcripts, and contact records can contain personal or sensitive information. Use only authorized data and recipients, obtain any notices or consent required for your use case, and follow your organization's retention and access policies.
+</Warning>
+
+<Warning>
+  Testing, onboarding, and launching can place real calls, send SMS or WhatsApp messages, create activity records, and consume credits. Use approved test recipients and verify every destination and sender before confirming an action.
+</Warning>
+
+## Contact data
+
+- Import only data your organization is authorized to process.
+- Use synthetic contacts while learning or documenting a workflow.
+- Limit custom attributes and flow values to information needed for the customer task.
+- Review file mappings before import; a phone-number match can update an existing contact.
+- Restrict exported files and failed-row downloads because they can contain contact data.
+
+## Calls, recordings, and transcripts
+
+Recording availability and defaults depend on the workflow and configuration. Inbound agent and inbound flow routes can have different defaults, and not every recording control is exposed in every customer screen.
+
+- Do not assume a call is recorded—or not recorded—without checking the applicable configuration and result.
+- Provide notices and obtain consent when required for the caller, recipient, location, and use case.
+- Treat recordings and transcripts as sensitive customer data.
+- Verify access, export, disclosure, and deletion procedures with your organization.
+- Follow the retention terms applicable to your organization.
+
+<Note>
+  Automated transcripts can be incomplete or inaccurate. Review the original interaction and surrounding context before using a transcript for an important decision.
+</Note>
+
+## Messaging consent
+
+Use SMS and WhatsApp only with approved senders, templates, recipients, and consent. Channel availability does not establish that a message is lawful or appropriate. Follow your organization's opt-in, opt-out, suppression, and escalation procedures.
+
+## API credentials
+
+- Store API keys in an approved server-side secret manager.
+- Never place a key in browser or mobile code, URLs, analytics, screenshots, logs, or a public repository.
+- Give each integration its own key and the least-capable approved role.
+- Rotate exposed or lost keys, verify the replacement, and revoke the old credential.
+- Use the endpoints documented in this API reference and a key with the required role.
+
+## Before a production launch
+
+Confirm that your organization has approved:
+
+- the audience and purpose;
+- the caller number, sender ID, or WhatsApp connection;
+- the flow content, values, fallbacks, and retry behavior;
+- calling hours and timezone;
+- recording and transcript handling;
+- the required notices, consent, and opt-out path;
+- access to results and exports; and
+- the expected credit use.
+
+Contact Gomobile support for questions about the terms applicable to your organization.

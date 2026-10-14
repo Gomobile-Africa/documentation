@@ -1,0 +1,366 @@
+---
+title: "Contacts API"
+description: "Create, retrieve, update, import, and organize contact data through the Gomobile API."
+icon: "contact"
+---
+
+The Contacts API is organization-scoped. Admin, Manager, and Agent API keys can use the endpoints on this page.
+
+<Warning>
+  Contacts, interaction history, import previews, and failed-row files can contain personal information. Use synthetic data in staging, restrict exports, and follow your organization's access and retention policies.
+</Warning>
+
+## Contact schema
+
+Create requests require `primaryPhone`. Optional properties are:
+
+```json
+{
+  "primaryPhone": "+212600000000",
+  "firstName": "Sara",
+  "lastName": "Test",
+  "fullName": "Sara Test",
+  "primaryEmail": "sara.test@example.com",
+  "address": "Example address",
+  "city": "Casablanca",
+  "state": "Casablanca-Settat",
+  "zip": "20000",
+  "occupation": "Example role",
+  "preferredChannel": "phone",
+  "gender": "female",
+  "channels": [],
+  "customAttributes": {
+    "customer_tier": "test"
+  }
+}
+```
+
+String limits are enforced by the API: names are at most 64 characters, phone numbers at most 20, addresses at most 256, and email values must be valid. Unknown request properties are rejected.
+
+A contact response includes `id`, `organizationId`, the contact fields, `channels`, `createdAt`, and `updatedAt`. `GET /contact/:id` also includes typed `customAttributes` entries.
+
+## List contacts
+
+`GET /contact`
+
+Query parameters: `page`, `limit`, `search`, `sortBy`, `sortOrder`, and `include`. Search covers name, phone, and email fields. Supported sort fields are `firstName`, `lastName`, `primaryPhone`, `primaryEmail`, and `createdAt`. Pass `include=customAttributes` to embed attribute values.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/contact" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20" \
+  --data-urlencode "search=Sara" \
+  --data-urlencode "include=customAttributes"
+```
+
+Response: `200` with the standard `{ data, meta }` pagination envelope. This request does not change data.
+
+## Get a contact
+
+`GET /contact/:id`
+
+Path parameter: `id`, a contact UUID.
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/contact/$CONTACT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with the contact and its custom attributes. Returns `404` when the contact is not present in the API key's organization.
+
+## Create a contact
+
+`POST /contact`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/contact" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "primaryPhone": "+212600000000",
+    "firstName": "Sara",
+    "lastName": "Test",
+    "city": "Casablanca"
+  }'
+```
+
+Example `201` response:
+
+```json
+{
+  "contact": {
+    "id": "123e4567-e89b-42d3-a456-426614174000",
+    "organizationId": "123e4567-e89b-42d3-a456-426614174001",
+    "firstName": "Sara",
+    "lastName": "Test",
+    "fullName": "Sara Test",
+    "primaryEmail": null,
+    "primaryPhone": "+212600000000",
+    "address": null,
+    "city": "Casablanca",
+    "state": null,
+    "zip": null,
+    "occupation": null,
+    "preferredChannel": null,
+    "gender": null,
+    "channels": [],
+    "createdAt": "2026-10-01T10:00:00.000Z",
+    "updatedAt": "2026-10-01T10:00:00.000Z"
+  },
+  "attributeErrors": []
+}
+```
+
+Save `contact.id` for subsequent requests. Inspect `attributeErrors` for custom attributes that were not stored. When `fullName` is omitted, it is constructed from the supplied first and last names.
+
+Side effect: creates customer data and a contact interaction. A duplicate primary phone returns `409` rather than silently updating the contact.
+
+## Bulk upsert contacts
+
+`POST /contact/upsert`
+
+Existing contacts are matched by primary phone. This endpoint can create and update multiple contacts in one request.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/contact/upsert" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      { "primaryPhone": "+212600000000", "firstName": "Sara" },
+      { "primaryPhone": "+212600000001", "firstName": "Youssef" }
+    ]
+  }'
+```
+
+Response: `201` with `successCount`, `failureCount`, and `failures`. Inspect all three fields: HTTP success does not mean every contact succeeded. Correct only failed entries before submitting them again.
+
+Example partial-success response:
+
+```json
+{
+  "successCount": 1,
+  "failureCount": 1,
+  "failures": [
+    {
+      "primaryPhone": "+212600000001",
+      "error": "Custom attribute 'customer_tier' does not exist"
+    }
+  ]
+}
+```
+
+Side effect: creates or changes contact records. Check existing contacts first when overwriting values would be harmful.
+
+## Update a contact
+
+`PUT /contact/:id`
+
+The request is partial despite using `PUT`: omitted fields remain unchanged, nullable optional fields can be cleared with `null`, and `primaryPhone` can be changed but cannot be cleared.
+
+```bash
+curl -X PUT "$GOMOBILE_API_BASE_URL/contact/$CONTACT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "city": "Rabat",
+    "primaryEmail": null
+  }'
+```
+
+Response: `200` with `{ contact, attributeErrors }`. Inspect attribute errors even when the contact update succeeds. When names change and no explicit full name is supplied, the service rebuilds the full name from the contact names. Returns `404` for an unknown contact and can return `409` when a unique value conflicts. Side effect: changes customer data and can change live-audience membership.
+
+## Delete a contact
+
+`DELETE /contact/:id`
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/contact/$CONTACT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with the soft-deleted contact. Side effect: removes the contact from active use and soft-deletes its audience memberships. Treat this as destructive even though the database operation is a soft delete.
+
+## List contact interactions
+
+`GET /contact/:id/interactions`
+
+| Query | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `limit` | Integer, 1–100 | `50` | Number of interactions |
+| `cursor` | Opaque string | — | Use `meta.nextCursor` from the previous response |
+| `types` | Comma-separated interaction types | All | Unknown types are rejected |
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/contact/$CONTACT_ID/interactions" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "limit=25" \
+  --data-urlencode "types=call.answered,sms.sent"
+```
+
+Example response:
+
+```json
+{
+  "data": [
+    {
+      "id": "123e4567-e89b-42d3-a456-426614174010",
+      "contactId": "123e4567-e89b-42d3-a456-426614174000",
+      "type": "call.answered",
+      "occurredAt": "2026-10-01T10:10:00.000Z",
+      "recordedAt": "2026-10-01T10:10:02.000Z",
+      "actor": { "kind": "system", "id": null },
+      "subject": { "kind": "call", "id": "123e4567-e89b-42d3-a456-426614174020" },
+      "context": {
+        "campaignId": null,
+        "flowId": null,
+        "executionId": null,
+        "nodeId": null,
+        "callId": "123e4567-e89b-42d3-a456-426614174020",
+        "audienceId": null,
+        "bindingId": null
+      },
+      "data": {
+        "direction": "outbound",
+        "outcome": "completed",
+        "reason": "contact_hung_up",
+        "hasTranscript": false,
+        "recordingId": null
+      }
+    }
+  ],
+  "meta": {
+    "limit": 25,
+    "nextCursor": null,
+    "retentionMonths": 12
+  }
+}
+```
+
+`retentionMonths` is returned by the API; do not hardcode its example value. Clients must tolerate new interaction types.
+
+## Custom attributes
+
+All custom-attribute endpoints accept Admin, Manager, and Agent API keys.
+
+| Method | Path | Request | Response | Side effect |
+| --- | --- | --- | --- | --- |
+| `GET` | `/custom-attributes` | — | Attribute array | None |
+| `GET` | `/custom-attributes/:customAttributeId` | — | One attribute | None |
+| `POST` | `/custom-attributes` | `displayName`, optional `description`, `type`, and `allowedValues` for enum | Created attribute | Creates a contact schema field |
+| `PUT` | `/custom-attributes/:id` | Optional `description` and enum `allowedValues` | Updated attribute | Changes schema metadata |
+| `DELETE` | `/custom-attributes/:id` | — | Deleted attribute | Removes the definition and its values |
+
+Supported types: `text`, `number`, `boolean`, `date`, `phone_number`, `email`, `url`, and `enum`.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/custom-attributes" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "displayName": "Customer Tier",
+    "description": "Synthetic integration test value",
+    "type": "enum",
+    "allowedValues": ["test", "control"]
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174030",
+  "organizationId": "123e4567-e89b-42d3-a456-426614174001",
+  "name": "customer_tier",
+  "displayName": "Customer Tier",
+  "description": "Synthetic integration test value",
+  "type": "enum",
+  "allowedValues": ["test", "control"],
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z"
+}
+```
+
+Deleting an attribute can return `409 CUSTOM_ATTRIBUTE_IN_USE`. Its `meta.flows` identifies flows that still read the field. Remove those references before retrying.
+
+## Import contacts
+
+Contact ingestion is a four-request workflow. This import workflow validates Moroccan phone numbers; use an accepted `+212` or local Moroccan format and confirm support before importing international numbers. It accepts CSV, XLSX, and XLS files and can optionally link successfully processed contacts to a static audience.
+
+### 1. Upload
+
+`POST /contact/ingestion/upload`
+
+Multipart fields: `file`, optional `previewRows`, optional `hasHeaderRow`, and optional `audienceId`.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/contact/ingestion/upload" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -F "file=@contacts.csv" \
+  -F "hasHeaderRow=true" \
+  -F "previewRows=20"
+```
+
+Response: `201` with `sessionId`, file metadata, detected columns, preview rows, and `expiresAt`. Side effect: uploads customer data and creates a temporary ingestion session. Files must not exceed 50 MiB or 100,000 rows, including a header row if present. `previewRows` defaults to `20` and accepts 1–100. `hasHeaderRow` defaults to `false`; set it to `true` when the first row contains column names. Sessions expire after 30 minutes of inactivity; upload and validate again if expired.
+
+### 2. Validate mappings
+
+`POST /contact/ingestion/validate`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/contact/ingestion/validate" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "'"$INGESTION_SESSION_ID"'",
+    "columnMappings": [
+      { "column": 0, "field": "firstName" },
+      { "column": 1, "field": "primaryPhone" },
+      { "column": 2, "field": "custom.customer_tier" }
+    ]
+  }'
+```
+
+Response: `201` with valid, invalid, and existing counts plus previewed rows. Exactly one column must map to `primaryPhone`. Duplicate phones inside the same file are validation errors; a phone matching an existing contact is shown as an update candidate.
+
+### 3. Page through validation results
+
+`GET /contact/ingestion/validate/:sessionId`
+
+Query parameters: `page`, `limit` (default `50`, maximum `500`), and `filter` (`all`, `valid`, `invalid`, or `existing`).
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/contact/ingestion/validate/$INGESTION_SESSION_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=50" \
+  --data-urlencode "filter=invalid"
+```
+
+### 4. Execute
+
+`POST /contact/ingestion/execute`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/contact/ingestion/execute" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "sessionId": "'"$INGESTION_SESSION_ID"'" }'
+```
+
+Response: `201` with `totalRows`, `importedCount`, `createdCount`, `updatedCount`, `failedCount`, optional `failedRowsCsvUrl`, and optional `audienceLinkedCount`.
+
+Contact import can succeed even if audience linking fails. Check membership in the selected static audience separately rather than treating import success or `audienceLinkedCount` as proof of successful additions.
+
+Side effects: creates and updates contacts, can add memberships to a static audience, and can produce a temporary failed-row download containing PII. An expired or unknown session returns `404`; execution before validation returns `400`.
+
+<Card title="Audiences API" icon="users-round" href="/developers/reference/audiences" horizontal>
+  Use imported or API-created contacts in static and live audiences.
+</Card>
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

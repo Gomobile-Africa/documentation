@@ -1,0 +1,19 @@
+---
+title: "API keys, access, and security"
+description: "Understand workspace access and server-to-server credentials."
+icon: "key-round"
+---
+
+Human workspace access and API access serve different purposes. Your workspace role controls available operations in the application. An API key authenticates a server-to-server integration within its organization.
+
+## API keys
+
+Organization owners and administrators manage API keys in the interface. Keys have Admin, Manager, or Agent roles. The assigned role is fixed; create a replacement when an integration needs a different role.
+
+The secret is shown only once. Store it securely on the server and send it in `X-API-Key`. Never put it in browser code or a public example. A role does not grant access to private or undocumented endpoints.
+
+## Workspace security
+
+Settings include personal MFA and an organization MFA requirement for eligible administrators. Use authorized recipients and data, and review your organization’s policies for recordings, transcripts, and contact records.
+
+Next: [Create an API key](/developers/authentication#create-a-key) and [responsible use](/product/responsible-use).

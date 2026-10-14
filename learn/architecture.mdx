@@ -1,0 +1,37 @@
+---
+title: "How objects connect"
+description: "See how customer-facing Gomobile objects connect."
+icon: "waypoints"
+---
+
+This overview shows the objects you configure and the activity you inspect.
+
+```mermaid
+flowchart TD
+    Contacts[Contacts] --> Audience[Audience]
+    Audience --> Campaign[Campaign]
+    Flow[Saved flow] --> Campaign
+    Campaign --> Run[Run: flow execution]
+    Run --> Call[Call when voice is involved]
+    Run --> Message[SMS or approved WhatsApp template]
+    Run --> Update[Contact updates and tags]
+    Call --> Results[Activity and outcomes]
+    Message --> Results
+    Update --> Results
+    Results --> Report[Campaign report]
+```
+
+The campaign connects the audience to a saved flow. The run records an execution of that flow. Channel activity depends on the steps reached; every run does not create both a call and a message.
+
+## Other entry points
+
+A flow test or supported API request can start a run without launching a campaign. An inbound binding routes a phone number to a Voice flow or AI agent.
+
+```mermaid
+flowchart LR
+    Caller[Incoming call] --> Number[Bound phone number]
+    Number --> Destination[Voice flow or AI agent]
+    Destination --> Activity[Call activity and available results]
+```
+
+See [How Gomobile works](/product/how-gomobile-works) for the object definitions and [campaign lifecycle](/product/campaign-lifecycle) for enrollment and scheduling.

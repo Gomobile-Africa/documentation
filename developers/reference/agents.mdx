@@ -1,0 +1,263 @@
+---
+title: "Agents API"
+description: "Create, configure, publish, and manage AI agents through the Gomobile API."
+icon: "bot"
+---
+
+Agent routes are available to Admin, Manager, and Agent API keys. Creating or editing an agent changes workspace configuration. Publishing an agent changes live inbound routing.
+
+## Endpoint summary
+
+| Method | Path | Purpose | Side effect |
+| --- | --- | --- | --- |
+| `GET` | `/agents` | List agents | None |
+| `POST` | `/agents` | Create an active, unpublished agent | Creates customer configuration |
+| `GET` | `/agents/:id` | Get agent details and publication state | None |
+| `PATCH` | `/agents/:id` | Update agent configuration | Changes future agent behavior |
+| `DELETE` | `/agents/:id` | Soft-delete an agent | Disables inbound bindings |
+| `POST` | `/agents/:id/activate` | Activate an agent | Changes availability |
+| `POST` | `/agents/:id/archive` | Archive an agent | Disables inbound bindings |
+| `POST` | `/agents/:id/restore` | Restore an archived agent | Does not republish it |
+| `GET` | `/agents/:id/available-dids` | List numbers available for publication | None |
+| `POST` | `/agents/:id/publish` | Bind the agent to an exact set of phone numbers | Changes live inbound routing |
+| `POST` | `/agents/:id/unpublish` | Disable the agent's inbound bindings | Changes live inbound routing |
+| `POST` | `/agents/:id/test` | Send a text playground message | Invokes configured AI providers and may incur usage |
+| `GET` | `/agents/options/stt` | List speech-to-text options | None |
+| `GET` | `/agents/options/llm` | List language-model options | None |
+| `GET` | `/agents/options/tts` | List text-to-speech options | None |
+| `GET` | `/agents/options/tts/:providerId/:modelId/voices` | List curated voices | None |
+| `GET` | `/agents/options/realtime` | List realtime options | None |
+
+## List agents
+
+`GET /agents`
+
+Query parameters are `page`, `limit`, `search`, `sortBy`, `sortOrder`, and `status`. Status is `draft`, `active`, or `archived`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/agents" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "status=active" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Response: `200` with the standard `{ data, meta }` envelope. Each item contains the agent configuration and a `publication` object when it has published phone-number bindings.
+
+## Create an agent
+
+`POST /agents`
+
+The smallest request supplies a name, instructions, and optionally a description. When `pipelineConfig`, memory, and operational settings are omitted, the service applies platform defaults. Discover currently enabled provider and model identifiers from the `/agents/options/*` routes before sending a custom pipeline.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/agents" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "API test assistant",
+    "description": "Synthetic staging assistant",
+    "instructions": "Answer only questions about the supplied test product. Ask for clarification when unsure."
+  }'
+```
+
+Validation:
+
+- `name`: 1–128 characters;
+- `description`: optional, up to 2,000 characters;
+- `instructions`: 1–10,000 characters;
+- `metadata`: optional JSON object.
+
+Selected fields from a `201` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174700",
+  "organizationId": "123e4567-e89b-42d3-a456-426614174999",
+  "name": "API test assistant",
+  "description": "Synthetic staging assistant",
+  "instructions": "Answer only questions about the supplied test product. Ask for clarification when unsure.",
+  "status": "active",
+  "version": 1,
+  "pipelineConfig": {
+    "pipelineMode": "stt-llm-tts",
+    "stt": { "providerId": "deepgram", "modelId": "nova-3", "language": "en-US" },
+    "llm": {
+      "modelId": "gpt-4o-mini",
+      "model": "openai/gpt-4o-mini",
+      "modelSettings": { "temperature": 0.7 }
+    },
+    "tts": {
+      "providerId": "elevenlabs",
+      "modelId": "eleven_flash_v2_5",
+      "voiceId": "default"
+    }
+  },
+  "memoryConfig": {
+    "enabled": true,
+    "lastMessages": 20,
+    "semanticRecall": false
+  },
+  "metadata": {},
+  "knowledgeBaseConfig": null,
+  "operationalConfig": {
+    "maxTurns": 10,
+    "conversationTimeout": 300000,
+    "turnTimeout": 10000,
+    "initialMessageConfig": { "initialMessageEnabled": false }
+  },
+  "publication": null,
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z",
+  "createdBy": null
+}
+```
+
+Provider defaults and returned configuration can change with workspace enablement; treat the response as authoritative.
+
+## Retrieve or update an agent
+
+`GET /agents/:id` returns the complete agent object. `PATCH /agents/:id` accepts the same configurable fields as creation; omitted fields stay unchanged.
+
+```bash
+curl -X PATCH "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Reviewed staging assistant",
+    "metadata": { "environment": "staging" }
+  }'
+```
+
+Response: `200` with the updated agent. Common failures are `400` for invalid configuration and `404` for an unknown or cross-workspace ID.
+
+## Read model and voice options
+
+Use these read-only endpoints before constructing a custom `pipelineConfig`:
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/agents/options/stt" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl "$GOMOBILE_API_BASE_URL/agents/options/llm" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl "$GOMOBILE_API_BASE_URL/agents/options/tts" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl "$GOMOBILE_API_BASE_URL/agents/options/realtime" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl "$GOMOBILE_API_BASE_URL/agents/options/tts/$TTS_PROVIDER_ID/$TTS_MODEL_ID/voices" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Each option response is an array or provider-grouped catalog describing identifiers, labels, supported languages, voices, and capabilities for that modality. The voice route returns `404` when the provider/model pair has no curated voice set. Treat the live response as the schema authority and tolerate additive capability fields.
+
+## Test with a text message
+
+`POST /agents/:id/test`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID/test" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "message": "What can you help me with?" }'
+```
+
+Selected fields from a `201` response:
+
+```json
+{
+  "response": "I can answer questions about the test product.",
+  "usage": { "inputTokens": 42, "outputTokens": 12 }
+}
+```
+
+The message must contain 1–10,000 characters. This is a text playground call; it does not place a phone call. It can invoke paid model providers and can expose submitted text to configured processors.
+
+## Publish an agent for inbound calls
+
+`POST /agents/:id/publish`
+
+Publishing reconciles the agent to the exact non-empty set of phone-number IDs in `didIds`. First call `GET /agents/:id/available-dids` to obtain eligible IDs.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID/publish" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "didIds": ["'"$DID_ID"'"] }'
+```
+
+The `201` response is the agent object with publication details:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174700",
+  "status": "active",
+  "publication": {
+    "isPublished": true,
+    "dids": [
+      {
+        "bindingId": "123e4567-e89b-42d3-a456-426614174710",
+        "didId": "123e4567-e89b-42d3-a456-426614174300",
+        "didNumber": "+212500000000"
+      }
+    ]
+  }
+}
+```
+
+<Warning>
+  Publication changes production inbound routing. The current publish path creates new agent bindings with call recording enabled by default, and this request has no recording override. An inbound call can create a conversation, invoke AI and voice providers, consume credits, and create a recording. Confirm recording notices, consent, retention, and disclosure rules with Gomobile before publishing.
+</Warning>
+
+`POST /agents/:id/unpublish` takes no request body and disables all of the agent's inbound bindings. Archiving or deleting also disables its bindings. Restoring does not reclaim a number automatically.
+
+## Lifecycle and deletion requests
+
+The lifecycle POST endpoints take no request body and return `201` with the updated agent:
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID/activate" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl -X POST "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID/archive" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl -X POST "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID/restore" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl -X POST "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID/unpublish" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Archiving or deleting can be blocked while an active campaign uses the agent. Resolve that dependency before retrying. Invalid state changes return `409`. `DELETE /agents/:id` soft-deletes the agent and disables its inbound bindings:
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Use `GET /agents/:id` to retrieve one agent. Use the following paginated read to discover numbers that are unclaimed or already published to this agent:
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/agents/$AGENT_ID/available-dids" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+## Current limitations
+
+- Tools, policies, and preview experiences can be unavailable or incomplete in the current UI.
+- Knowledge-base attachment depends on agent pipeline compatibility; realtime agents do not currently expose the Knowledge Base tab in the current UI.
+- Do not automate provider/model IDs as permanent constants. Read the option endpoints and handle removal or workspace-specific availability.
+
+All examples require `X-API-Key`. All IDs are UUIDs. See [API basics](/developers/api-basics) for common errors and safe testing.
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

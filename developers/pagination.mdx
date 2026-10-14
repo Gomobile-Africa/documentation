@@ -1,0 +1,37 @@
+---
+title: "Pagination"
+description: "Understand the shared API behavior and endpoint-specific limits."
+icon: "braces"
+---
+
+Most list endpoints use page-based pagination:
+
+| Parameter | Meaning | Default | Limit |
+| --- | --- | --- | --- |
+| `page` | One-based page number | `1` | Minimum `1` |
+| `limit` | Items per page | `20` | Maximum `100` |
+| `search` | Text search where supported | — | Maximum 100 characters |
+| `sortBy` | Endpoint-specific sort field | Endpoint-specific | Use endpoint-supported fields |
+| `sortOrder` | Sort direction | Endpoint-specific | `asc` or `desc` |
+
+A paginated response has this envelope:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 0,
+    "totalPages": 0,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
+```
+
+Import validation results use `page` and `limit`, with default `limit=50` and maximum `500`. See [contact import](/developers/reference/contacts#3-page-through-validation-results).
+
+Contact interactions use cursor pagination instead. Follow the returned `meta.nextCursor` rather than constructing a cursor yourself.
+
+See [API basics](/developers/api-basics) for setup and request conventions.

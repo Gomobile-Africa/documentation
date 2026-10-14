@@ -1,0 +1,21 @@
+---
+title: "Runs (executions)"
+description: "Distinguish one flow execution from a call or campaign attempt."
+icon: "book-open"
+---
+
+An **execution** of a flow is called a **run** in Gomobile. A run records the automation path and values for one execution context.
+
+| Object | Question it answers |
+| --- | --- |
+| Campaign | Which audience and flow are being operated, and when? |
+| Run | What steps executed for this context? |
+| Call | What happened in this voice interaction? |
+| Try | Which campaign attempt to reach the contact was this? |
+| Outcome | What was the resulting contact or interaction result? |
+
+A run is not necessarily a call: a Multichannel flow can perform messaging or contact updates. Campaigns, flow tests, supported API requests, and inbound bindings can start runs.
+
+Use Runs to investigate automation, Calls for voice timelines and available media, and campaign reports for overall progress.
+
+Next: [runs and calls reference](/developers/reference/runs-and-calls).

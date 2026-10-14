@@ -1,0 +1,215 @@
+---
+title: "WhatsApp API"
+description: "Inspect channel state and manage customer-authored WhatsApp templates."
+icon: "message-circle"
+---
+
+WhatsApp routes accept Admin, Manager, and Agent API keys. They require a Gomobile-provisioned WhatsApp Business channel. Check the channel connection before submitting templates or sending test messages.
+
+## Endpoint summary
+
+| Method | Path | Purpose | Side effect |
+| --- | --- | --- | --- |
+| `GET` | `/whatsapp/channel` | Read safe channel status | None |
+| `GET` | `/whatsapp/templates` | List templates | None |
+| `POST` | `/whatsapp/templates` | Submit a template for Meta approval | Creates customer data and external provider state |
+| `GET` | `/whatsapp/templates/:id` | Get a template | None |
+| `PUT` | `/whatsapp/templates/:id` | Edit and resubmit a rejected template | Changes customer and provider state |
+| `DELETE` | `/whatsapp/templates/:id` | Delete all language variants sharing its name | Deletes at provider, then soft-deletes matching variants locally |
+| `POST` | `/whatsapp/templates/refresh` | Reconcile provider approval state | Reads provider state and updates local status |
+| `POST` | `/whatsapp/templates/media` | Upload header media | Stores a file and uploads it when needed |
+| `POST` | `/whatsapp/templates/:id/send-test` | Send an approved template test | Sends a real WhatsApp message |
+
+## Check channel status
+
+`GET /whatsapp/channel`
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/whatsapp/channel" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+When no channel is connected, the endpoint returns `200` rather than an error:
+
+```json
+{ "channel": null }
+```
+
+When connected:
+
+```json
+{
+  "channel": {
+    "phoneNumber": "+212500000000",
+    "wabaId": "waba_123",
+    "status": "active"
+  }
+}
+```
+
+The response deliberately excludes provider credentials.
+
+## List templates
+
+`GET /whatsapp/templates`
+
+Use standard `page`, `limit`, `search`, `sortBy`, and `sortOrder` parameters plus `status=pending|approved|rejected`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/whatsapp/templates" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "status=approved" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Response: `200` with `{ data, meta }`. Template objects include their UUID, name, language, category, body, ordered variables, optional header/footer/buttons, external approval status, and rejection reason.
+
+Retrieve one template with:
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/whatsapp/templates/$TEMPLATE_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+## Submit a template
+
+`POST /whatsapp/templates`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/whatsapp/templates" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "api_test_update",
+    "category": "UTILITY",
+    "language": "en",
+    "bodyText": "Hi {firstName}, your test update is ready.",
+    "variables": [
+      { "name": "firstName", "fallback": "there" }
+    ],
+    "footerText": "Appointment reminder"
+  }'
+```
+
+Rules:
+
+- `name`: 1–512 lowercase letters, numbers, or underscores;
+- `category`: `MARKETING` or `UTILITY`;
+- `language`: 2–16 characters;
+- `bodyText`: 1–1,024 characters;
+- `variables`: ordered array, up to 50; each name starts with a letter and each fallback is 1–120 characters;
+- `footerText`: optional, up to 60 characters; and
+- `buttons`: optional, up to 10 total, including at most two URL buttons and one phone-number button.
+
+Example `201` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614174900",
+  "name": "api_test_update",
+  "category": "UTILITY",
+  "language": "en",
+  "bodyText": "Hi {firstName}, your test update is ready.",
+  "variables": [{ "name": "firstName", "fallback": "there" }],
+  "headerType": null,
+  "footerText": "Appointment reminder",
+  "buttons": [],
+  "status": "pending",
+  "rejectionReason": null
+}
+```
+
+Submission sends template content to the connected provider for Meta review. It does not send a message to a contact.
+
+### Button fields
+
+Every button requires `type` and `text` (1–25 characters). `QUICK_REPLY` needs no destination. `URL` requires a static `url` with a protocol, up to 2,000 characters. `PHONE_NUMBER` requires `phoneNumber` containing 7–15 digits, with an optional leading `+`. Button availability remains subject to provider validation.
+
+## Header media
+
+`POST /whatsapp/templates/media` accepts one `file` part. Accepted uploads are limited to 16 MiB and one of JPEG, PNG, MP4, or PDF.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/whatsapp/templates/media" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -F "file=@./synthetic-header.png"
+```
+
+Example response:
+
+```json
+{ "fileId": "123e4567-e89b-42d3-a456-426614174910" }
+```
+
+Supply both `headerType` (`IMAGE`, `VIDEO`, or `DOCUMENT`) and the returned `headerMediaFileId` when creating a media template.
+
+## Refresh, resubmit, or delete
+
+`POST /whatsapp/templates/refresh` requests a status refresh and returns the current paginated list with HTTP `200`. Re-read `GET /whatsapp/templates` to see changes after refresh completes. An unchanged immediate response does not mean provider review has finished.
+
+Request a refresh with:
+
+```bash
+curl -X POST --get "$GOMOBILE_API_BASE_URL/whatsapp/templates/refresh" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+`PUT /whatsapp/templates/:id` resubmits a rejected template’s complete revisable content. `category`, `bodyText`, and `variables` are required. Include any header, footer, and buttons you want to retain; omitting them removes that content. The template’s name and language cannot be changed. A template that is not rejected returns `409`.
+
+This example retains a footer and a quick-reply button. Include both `headerType` and `headerMediaFileId` too if retaining a media header:
+
+```bash
+curl -X PUT "$GOMOBILE_API_BASE_URL/whatsapp/templates/$TEMPLATE_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "category": "UTILITY",
+    "bodyText": "Hi {firstName}, your revised test update is ready.",
+    "variables": [
+      { "name": "firstName", "fallback": "there" }
+    ],
+    "footerText": "Appointment reminder",
+    "buttons": [{ "type": "QUICK_REPLY", "text": "Acknowledged" }]
+  }'
+```
+
+The response is the updated template with `status: "pending"`. Delete a template with:
+
+```bash
+curl -i -X DELETE "$GOMOBILE_API_BASE_URL/whatsapp/templates/$TEMPLATE_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Deleting a template deletes every language variant with the same template name on the connected channel. Review all affected variants and flows before deleting. Successful deletion returns `204 No Content`.
+
+## Send a test
+
+`POST /whatsapp/templates/:id/send-test`
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/whatsapp/templates/$TEMPLATE_ID/send-test" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Example `200` response:
+
+```json
+{ "messageId": "provider_message_id" }
+```
+
+The template must be approved and the channel active. This endpoint sends it to the organization creator’s verified phone number, using each template variable’s fallback value. It does not accept a recipient or custom variable values. Confirm that recipient before sending. A returned `messageId` does not establish delivery.
+
+<Warning>
+  This sends a real WhatsApp message. Use only an approved test recipient who has opted in. Template approval does not replace consent, opt-out, content, or timing obligations. Provider and Gomobile usage charges can apply.
+</Warning>
+
+Common failures are `400` for invalid content, missing channel, unapproved template, or missing verified recipient; `404` for an unknown template; and `409` for attempting to resubmit a template that is not rejected.
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.

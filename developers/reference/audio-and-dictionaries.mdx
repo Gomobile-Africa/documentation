@@ -1,0 +1,292 @@
+---
+title: "Audio and Dictionaries API"
+description: "Manage reusable WAV assets and pronunciation dictionaries."
+icon: "audio-lines"
+---
+
+Audio and Dictionary routes accept Admin, Manager, and Agent API keys. Both areas store media in the current workspace. Upload only content you are authorized to use.
+
+## Audio endpoints
+
+| Method | Path | Purpose | Response or side effect |
+| --- | --- | --- | --- |
+| `POST` | `/audio-management/upload` | Upload a WAV asset | Stores and scans media; `201` audio object |
+| `GET` | `/audio-management/audios` | List audio assets | Paginated `{ data, meta }` |
+| `GET` | `/audio-management/audio/:id` | Stream audio | Binary response |
+| `GET` | `/audio-management/audio/:id/metadata` | Get audio metadata | Audio object |
+| `GET` | `/audio-management/audio/:id/details` | Get metadata with workspace relation | Expanded audio object |
+| `PUT` | `/audio-management/audio/:id` | Update metadata | Updated audio object |
+| `GET` | `/audio-management/audio/:id/playback-url` | Create a temporary signed URL | Creates a short-lived access URL |
+| `GET` | `/audio-management/audios/usage/:usageType` | List by usage | Array of audio objects |
+| `DELETE` | `/audio-management/audio/:id` | Delete an asset and stored file | Destructive deletion |
+
+### Upload audio
+
+`POST /audio-management/upload`
+
+The API accepts one WAV file up to 50 MiB.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/audio-management/upload" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -F "file=@./synthetic-greeting.wav" \
+  -F "title=Synthetic greeting" \
+  -F "description=Staging-only asset" \
+  -F "usageType=welcome" \
+  -F "tags=staging,greeting"
+```
+
+Optional form fields are:
+
+- `title`, up to 255 characters;
+- `description`, up to 500 characters;
+- `usageType`: `welcome`, `goodbye`, `question`, `prompt`, `hold_music`, `notification`, or `other`; and
+- `tags`: an array or comma-separated string.
+
+Example `201` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614175000",
+  "title": "Synthetic greeting",
+  "description": "Staging-only asset",
+  "usageType": "welcome",
+  "tags": ["staging", "greeting"],
+  "durationSeconds": 3,
+  "sampleRate": 8000,
+  "channels": 1,
+  "bitDepth": 16,
+  "organizationId": "123e4567-e89b-42d3-a456-426614174999",
+  "originalFileName": "synthetic-greeting.wav",
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z",
+  "file": {
+    "id": "123e4567-e89b-42d3-a456-426614175001",
+    "name": "synthetic-greeting.wav",
+    "contentType": "audio/wav",
+    "fileSize": 48044,
+    "checksum": "sha256-value",
+    "scanStatus": "PENDING",
+    "scanResultAt": null,
+    "playable": true,
+    "downloadable": false
+  }
+}
+```
+
+Pending audio can be playable while download is unavailable. Use the returned `file.playable` and `file.downloadable` booleans; do not infer readiness from upload success.
+
+### List, retrieve, and update audio
+
+`GET /audio-management/audios` supports standard pagination/search/sort plus `usageType` and `tags`. Valid sort fields in the API are `createdAt`, `title`, and `durationSeconds`.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/audio-management/audios" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "usageType=welcome" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+```
+
+Retrieve metadata with `GET /audio-management/audio/:id/metadata`. Stream the binary with `GET /audio-management/audio/:id` only after `playable` is true.
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/audio-management/audio/$AUDIO_ID/metadata" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl "$GOMOBILE_API_BASE_URL/audio-management/audio/$AUDIO_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --output synthetic-greeting.wav
+```
+
+`GET /audio-management/audio/:id/details` returns the same metadata plus the current workspace's `id`, `name`, and `slug`. `GET /audio-management/audios/usage/:usageType` returns a non-paginated array filtered by one valid usage type:
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/audio-management/audio/$AUDIO_ID/details" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl "$GOMOBILE_API_BASE_URL/audio-management/audios/usage/welcome" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Update metadata with:
+
+```bash
+curl -X PUT "$GOMOBILE_API_BASE_URL/audio-management/audio/$AUDIO_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Reviewed synthetic greeting",
+    "usageType": "prompt",
+    "tags": ["staging", "reviewed"]
+  }'
+```
+
+The update fields and limits match the upload metadata fields.
+
+### Create a playback URL or delete
+
+Use `file.playable` to determine whether authenticated streaming is available. Request a signed playback URL only when `file.downloadable` is true. A playable file can still be unavailable through a signed URL.
+
+`GET /audio-management/audio/:id/playback-url` accepts an optional `expiresIn` query parameter:
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/audio-management/audio/$AUDIO_ID/playback-url" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "expiresIn=3600"
+```
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614175000",
+  "playbackUrl": "https://signed-storage.example/temporary-object",
+  "expiresIn": 3600,
+  "expiresAt": "2026-10-01T11:00:00.000Z"
+}
+```
+
+`expiresIn` must be 1–86,400 seconds. Treat the URL as a secret until it expires.
+
+Delete with:
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/audio-management/audio/$AUDIO_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+Response: `200` with `{ "message": "Audio deleted successfully" }`. Deletion can break flows or other configuration that references the asset; check use before deletion.
+
+## Dictionary endpoints
+
+| Method | Path | Purpose | Response or side effect |
+| --- | --- | --- | --- |
+| `POST` | `/dictionaries` | Create a pronunciation dictionary | Creates workspace configuration |
+| `GET` | `/dictionaries` | List dictionaries | Optional read-only system dictionaries |
+| `GET` | `/dictionaries/:dictionaryId` | Get a dictionary | Dictionary object |
+| `PATCH` | `/dictionaries/:dictionaryId` | Update name or description | Changes configuration |
+| `DELETE` | `/dictionaries/:dictionaryId` | Delete a workspace dictionary | Destructive deletion |
+| `GET` | `/dictionaries/:dictionaryId/entries` | List entries | Paginated `{ data, meta }` |
+| `POST` | `/dictionaries/:dictionaryId/entries` | Add a key and WAV clip | Stores media and changes pronunciation |
+| `GET` | `/dictionaries/:dictionaryId/entries/:key` | Get an entry | Entry object |
+| `GET` | `/dictionaries/:dictionaryId/entries/:key/audio` | Stream entry audio | WAV binary response |
+| `DELETE` | `/dictionaries/:dictionaryId/entries/:key` | Remove an entry | Changes pronunciation |
+
+### Create and list dictionaries
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/dictionaries" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "French API test",
+    "description": "Synthetic staging pronunciation",
+    "language": "fr"
+  }'
+```
+
+`name` is required and limited to 256 characters. `language` must be `ar` or `fr`. Language is immutable because entries are recorded for that language.
+
+Example response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614175100",
+  "name": "French API test",
+  "description": "Synthetic staging pronunciation",
+  "language": "fr",
+  "isSystem": false,
+  "entryCount": 0
+}
+```
+
+List workspace dictionaries with:
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/dictionaries" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "includeSystem=false"
+```
+
+Set `includeSystem=true` to include shared read-only system dictionaries. Do not attempt to edit or delete a system dictionary.
+
+Retrieve or update one workspace dictionary with:
+
+```bash
+curl "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl -X PATCH "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "description": "Reviewed staging pronunciation" }'
+```
+
+`PATCH` accepts only `name` and nullable `description`; language cannot change. Delete a workspace dictionary with:
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+### Add and inspect an entry
+
+`POST /dictionaries/:dictionaryId/entries` accepts one WAV file up to 10 MiB and a `key` up to 256 characters.
+
+```bash
+curl -X POST "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID/entries" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  -F "key=Gomobile" \
+  -F "file=@./gomobile-pronunciation.wav"
+```
+
+Example `201` response:
+
+```json
+{
+  "id": "123e4567-e89b-42d3-a456-426614175110",
+  "dictionaryId": "123e4567-e89b-42d3-a456-426614175100",
+  "key": "Gomobile",
+  "audioId": "123e4567-e89b-42d3-a456-426614175111",
+  "createdAt": "2026-10-01T10:00:00.000Z",
+  "updatedAt": "2026-10-01T10:00:00.000Z"
+}
+```
+
+List entries with standard `page`, `limit`, and `search` query parameters. Retrieve a single entry at `/dictionaries/:dictionaryId/entries/:key` and its WAV binary at the nested `/audio` path.
+
+```bash
+curl --get "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID/entries" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --data-urlencode "page=1" \
+  --data-urlencode "limit=20"
+
+curl "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID/entries/Gomobile" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+
+curl "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID/entries/Gomobile/audio" \
+  -H "X-API-Key: $GOMOBILE_API_KEY" \
+  --output gomobile-pronunciation.wav
+```
+
+The list response uses `{ data, meta }`. Each entry contains its `id`, `dictionaryId`, `key`, `audioId`, audit timestamps, and nullable audit actor fields. The audio route returns `audio/wav` with `Cache-Control: no-store`.
+
+Delete an entry with:
+
+```bash
+curl -X DELETE "$GOMOBILE_API_BASE_URL/dictionaries/$DICTIONARY_ID/entries/Gomobile" \
+  -H "X-API-Key: $GOMOBILE_API_KEY"
+```
+
+URL-encode keys that contain spaces or reserved URL characters.
+
+<Warning>
+  Audio and dictionary mutations can change customer-facing voice output. Test pronunciation in a non-production flow before relying on it in calls. Uploaded recordings can contain personal or licensed voice material.
+</Warning>
+
+Common failures are `400` for an unsupported file or invalid field, `404` for an unknown or cross-workspace resource, and a conflict when a key or name violates uniqueness rules.
+
+## Pagination and request retries
+
+Page-based lists use `page=1` and `limit=20` by default, with a maximum `limit` of `100`, unless the endpoint above specifies an exception. Follow the response’s pagination metadata. See [pagination](/developers/pagination) for the response envelope.
+
+If a request returns `429`, wait for `Retry-After` when supplied before retrying. For a mutation that times out, check the resource or run before repeating the request; repeating it can duplicate work. See [errors](/developers/errors) for authentication and validation failures.
