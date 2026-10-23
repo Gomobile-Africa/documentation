@@ -1,0 +1,10 @@
+# Generated packages, public-repository exports, and review copies.
+/dist/
+
+# Python caches and local environments.
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local operating-system files.
+.DS_Store

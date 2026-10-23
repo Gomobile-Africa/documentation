@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "gomobile",
+  "version": "0.2.1",
+  "description": "Prepare Gomobile workflows and investigate supplied reports using documented product behavior. No API execution.",
+  "author": { "name": "Gomobile" },
+  "homepage": "https://docs.gomobile.ma"
+}

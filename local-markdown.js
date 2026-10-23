@@ -4,7 +4,7 @@
 
   function plainMarkdown(markdown, pageURL) {
     const code = [];
-    let text = markdown.replace(/(^|\n)(`{3,}|~{3,})[^\n]*\n[\s\S]*?\n\2[^\n]*(?=\n|$)|`+[^`\n]+`+/g, (match) => {
+    let text = markdown.replace(/(^|\n)[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)|`+[^`\n]+`+/g, (match) => {
       code.push(match);
       return `\u0000CODE${code.length - 1}\u0000`;
     });
@@ -14,7 +14,16 @@
       const match = attributes.match(new RegExp(`\\b${name}=["']([^"']*)["']`));
       return match ? match[1] : '';
     };
-    const absolute = (href) => new URL(href, pageURL).href;
+    const absolute = (href) => {
+      const url = new URL(href, pageURL);
+      // A pasted export should link to customer docs, including from mint dev.
+      if (local && url.origin === window.location.origin) {
+        url.protocol = 'https:';
+        url.host = 'docs.gomobile.ma';
+        url.port = '';
+      }
+      return url.href;
+    };
     text = text.replace(/<Card\b([^>]*)>([\s\S]*?)<\/Card>/g, (_, attributes, body) => {
       const title = attribute(attributes, 'title');
       const href = attribute(attributes, 'href');
@@ -27,7 +36,8 @@
     text = text.replace(/<Step\b([^>]*)>/g, (_, attributes) => `\n\n### ${attribute(attributes, 'title')}\n\n`);
     text = text.replace(/<\/?(?:CardGroup|Steps|Step)\b[^>]*>/g, '');
     text = text.replace(/(!?\[[^\]\n]*\]\()([^\s)]+)(\))/g, (_, start, href, end) => `${start}${absolute(href)}${end}`);
-    text = text.replace(/\n[ \t]+/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    // Indentation attaches code blocks to list steps and carries code semantics.
+    text = text.replace(/^[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
     return text.replace(/\u0000CODE(\d+)\u0000/g, (_, index) => code[Number(index)]) + '\n';
   }
 
@@ -66,6 +76,7 @@
 
   // Some contextual menu versions open Markdown with window.open, not an anchor.
   if (!local) return;
+
   const originalOpen = window.open.bind(window);
   window.open = (url, ...options) => originalOpen(
     url ? markdownURL(String(url)) || url : url,

@@ -1,0 +1,135 @@
+---
+title: "Install the Gomobile plugin"
+description: "Install the Gomobile plugin in Codex or Claude Code directly from its public GitHub marketplace."
+icon: "download"
+---
+
+Install the Gomobile plugin from its [public GitHub marketplace](https://github.com/Gomobile-Africa/gomobile-plugins). Version **0.2.1** includes one skill named `gomobile`.
+
+**You do not need to clone the repository or download a ZIP.** Once your AI client and Git are installed, the two installation commands below download and install the plugin for you. The remaining steps confirm that it is installed, enabled, and available in a new session.
+
+Tested with Codex CLI **0.160.0** and Claude Code **2.1.304**. These are tested versions, not minimum supported versions.
+
+## Before you begin
+
+- Install [Codex](https://developers.openai.com/codex/quickstart) or [Claude Code](https://code.claude.com/docs/en/overview) and complete the client's sign-in process.
+- Install Git and check that `git --version` works in your terminal.
+- Check that your organization allows plugin installation and permits you to share the intended data with your AI client.
+- If you previously installed Gomobile from a local folder or ZIP, follow [Update or remove](#update-or-remove) before adding the GitHub marketplace.
+
+## Choose your AI client
+
+Open a terminal and follow the steps for Codex or Claude Code. You can run the installation commands from any folder. Both clients use the same Gomobile plugin.
+
+## Codex
+
+1. Run these two commands in your terminal to add the Gomobile marketplace and install the plugin:
+
+   ```bash
+   codex plugin marketplace add Gomobile-Africa/gomobile-plugins
+   codex plugin add gomobile@gomobile
+   ```
+
+2. Check the installed plugin:
+
+   ```bash
+   codex plugin list --marketplace gomobile
+   ```
+
+   Find `gomobile@gomobile` with status **installed, enabled** and version **0.2.1**.
+
+3. Start a new session:
+
+   ```bash
+   codex
+   ```
+
+   Inside Codex, enter `/skills` and look for the Gomobile skill (`gomobile:gomobile`).
+
+4. Send this prompt inside Codex:
+
+   ```text
+   Use $gomobile:gomobile to explain static versus live audiences.
+   Give one example of each and identify the sources you used.
+   ```
+
+## Claude Code
+
+1. Run these two commands in your terminal to add the Gomobile marketplace and install the plugin:
+
+   ```bash
+   claude plugin marketplace add Gomobile-Africa/gomobile-plugins
+   claude plugin install gomobile@gomobile
+   ```
+
+2. Check the installed plugin:
+
+   ```bash
+   claude plugin list
+   claude plugin details gomobile
+   ```
+
+   The plugin list should show `gomobile@gomobile`, version **0.2.1**, with status **enabled**. The details should include **Skills (1)** with the skill name **gomobile**.
+
+3. Start a new session:
+
+   ```bash
+   claude
+   ```
+
+4. Send this prompt inside Claude Code:
+
+   ```text
+   /gomobile:gomobile Explain static versus live audiences.
+   Give one example of each and identify the sources you used.
+   ```
+
+## What a successful test looks like
+
+The plugin status and skill inventory above confirm installation. The prompt checks whether the assistant can use the skill for a basic Gomobile question.
+
+Expect the assistant to load the Gomobile skill and explain:
+
+- A **static audience** contains selected contacts; membership changes when contacts are explicitly added or removed.
+- A **live audience** uses rules to determine membership, such as contacts whose city is Casablanca.
+- Which sources it used: public documentation, bundled reference notes, or text you supplied. If public pages are inaccessible, it can answer from the bundled notes and should say so.
+
+No Gomobile API key, account query, or Gomobile credits are needed for this check.
+
+Next, [try preparing a WhatsApp campaign or another workflow](/guides/ai-tools/usage#plan-a-whatsapp-campaign). A useful campaign result should be a draft plan with missing information and checks before launch; it should not claim that resources were created or messages sent.
+
+## Update or remove
+
+Versions **0.2.0** and later use one `gomobile` skill in place of the four skills in **0.1.0**. Use `$gomobile:gomobile` in Codex or `/gomobile:gomobile` in Claude Code for every workflow. The plugin identifier remains `gomobile@gomobile`.
+
+Version **0.2.1** updates the reference guidance without changing the skill name.
+
+To update or replace a previous local installation, remove the plugin and marketplace using the commands below. Then repeat the installation steps to download the current GitHub version, and start a new session. Restarting a session alone does not download an update. To remove Gomobile without reinstalling it, stop after the removal commands.
+
+For Codex:
+
+```bash
+codex plugin remove gomobile@gomobile
+codex plugin marketplace remove gomobile
+```
+
+For Claude Code:
+
+```bash
+claude plugin uninstall gomobile@gomobile
+claude plugin marketplace remove gomobile
+```
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| `plugin` command is unavailable | Check your client version, its plugin documentation, and your organization's plugin policy |
+| Marketplace download fails | Check Git installation, access to GitHub, and your organization's network and plugin policies |
+| Marketplace still uses an old local folder | Remove the previous plugin and marketplace, then add `Gomobile-Africa/gomobile-plugins` |
+| Plugin cannot be found | Add the Gomobile marketplace first, then install `gomobile@gomobile` |
+| Gomobile skill is missing | Confirm the plugin is enabled and start a new session; reinstall if the package download was incomplete |
+| Assistant explains Gomobile but the plugin is not listed | Complete the installation and inventory checks above, then invoke `gomobile:gomobile` explicitly in a new session |
+| Assistant cannot read documentation | Enable an allowed documentation-reading tool or provide the relevant public page text |
+
+For client-specific details, see [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins) and [Claude Code marketplaces](https://code.claude.com/docs/en/plugin-marketplaces).

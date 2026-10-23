@@ -15,8 +15,8 @@ Campaign endpoints are available to Admin, Manager, and Agent API keys. They ope
 | `GET` | `/campaigns/:id` | Get campaign, metrics, and enrollment count | None |
 | `PATCH` | `/campaigns/:id` | Update a draft | Changes future launch configuration |
 | `POST` | `/campaigns/:id/activate` | Launch now or schedule | Enrolls contacts and starts/schedules real work |
-| `POST` | `/campaigns/:id/pause` | Soft-pause an active campaign | Stops new admission; some scheduled retries can still run depending on timing |
-| `POST` | `/campaigns/:id/resume` | Resume a paused campaign | Restarts admission |
+| `POST` | `/campaigns/:id/pause` | Pause an active campaign | Holds pending work, including queued retries; work already picked up can continue |
+| `POST` | `/campaigns/:id/resume` | Resume an eligible paused campaign | Makes held work eligible again; does not replay missed live-audience entries |
 | `POST` | `/campaigns/:id/stop` | Permanently stop | Cancels pending campaign work |
 | `DELETE` | `/campaigns/:id` | Soft-delete a draft or stopped campaign | Destructive configuration change |
 | `GET` | `/campaigns/:id/report` | Read aggregate results | Can enqueue snapshot computation |
@@ -212,7 +212,7 @@ curl -X POST "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/activate" \
 If `startAt` is absent or in the past, the campaign becomes `active` and enrolls eligible audience contacts. A future `startAt` produces `scheduled`; the lifecycle worker activates and enrolls it later.
 
 <Warning>
-  Activation is not a dry run. A static audience enrolls from its launch snapshot. A live audience can continue enrolling contacts that begin matching while the campaign is active.
+  Activation is not a dry run. Initial enrollment uses the audience's current members when the campaign actually activates. While active, new live-audience entries can create additional executions, including when a contact exits and re-enters. Do not promise one send per contact or guaranteed admission from an event alone.
 </Warning>
 
 ## Pause a campaign
@@ -224,7 +224,7 @@ curl -X POST "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/pause" \
   -H "X-API-Key: $GOMOBILE_API_KEY"
 ```
 
-Response: `200` with `status: "paused"`. This is a soft pause: new campaign work stops, but some already scheduled retries can still run depending on timing.
+Response: `200` with `status: "paused"`. Pausing holds pending campaign work, including queued retries, while the campaign remains paused. Work already picked up or running can continue; pause does not undo activity already performed. Live-audience entry events received while paused are not admitted.
 
 ## Resume a campaign
 
@@ -235,7 +235,7 @@ curl -X POST "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/resume" \
   -H "X-API-Key: $GOMOBILE_API_KEY"
 ```
 
-Response: `200` with `status: "active"`. Live-audience admission resumes.
+When eligible, response: `200` with `status: "active"`. Held work becomes eligible again, subject to calling hours, deadlines, and other campaign checks. New live-audience entries can be admitted while active, but resume does not itself replay entries missed during pause. Inspect the pause reason and any unresolved credit, threshold, or elapsed-stop-time condition before proposing recovery; resuming is not always permitted.
 
 ## Stop a campaign
 
@@ -302,7 +302,7 @@ curl "$GOMOBILE_API_BASE_URL/campaigns/$CAMPAIGN_ID/funnel" \
   -H "X-API-Key: $GOMOBILE_API_KEY"
 ```
 
-The response uses `not_started`, `computing`, or `ready`, like other report snapshots. A campaign funnel covers the campaign's whole life and counts runs rather than unique contacts.
+The response uses `not_started`, `computing`, or `ready`, like other report snapshots. This node funnel covers the campaign's whole life and counts executions reaching flow steps rather than unique contacts. Retries or repeated admissions can contribute additional runs. Distinguish it from the contact-level funnel inside a campaign report; confirm the endpoint and denominator before comparing figures.
 
 <Card title="Runs and Calls API" icon="activity" href="/developers/reference/runs-and-calls" horizontal>
   Follow asynchronous runs and inspect the voice legs they produce.

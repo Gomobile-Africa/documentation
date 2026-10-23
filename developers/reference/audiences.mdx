@@ -14,7 +14,7 @@ The Audiences API is available to Admin, Manager, and Agent API keys. An audienc
 | `GET` | `/audience/:id` | Get an audience and counts | None |
 | `GET` | `/audience/:id/contacts` | List current or exited members | Reads contact PII |
 | `POST` | `/audience` | Create a static or live audience | Creates data; live rules can add members |
-| `POST` | `/audience/preview` | Count contacts matching rules | None |
+| `POST` | `/audience/preview` | Count matches and return sample contacts | Can expose contact PII; does not change membership |
 | `POST` | `/audience/:id/add-contacts` | Add members to a static audience | Changes membership |
 | `POST` | `/audience/:id/remove-contacts` | Remove members from a static audience | Changes membership |
 | `PUT` | `/audience/:id` | Rename or update live rules | Can recalculate membership |
@@ -136,7 +136,7 @@ Operators: `equals`, `not_equals`, `is_empty`, `is_not_empty`, `gt`, `gte`, `lt`
 
 `POST /audience/preview`
 
-Preview creates nothing and returns the number of contacts matching now.
+Preview does not create an audience or change membership. Its result contains `count` and up to 50 most recently created matching contacts. The restricted no-contact-PII response has `contacts: null`; that does not imply a zero count. For count-only analysis, share only the count rather than the contact records.
 
 ```bash
 curl -X POST "$GOMOBILE_API_BASE_URL/audience/preview" \
@@ -158,10 +158,10 @@ curl -X POST "$GOMOBILE_API_BASE_URL/audience/preview" \
   }'
 ```
 
-Example `201` response:
+Example `201` response with contact records restricted:
 
 ```json
-{ "count": 42 }
+{ "count": 42, "contacts": null }
 ```
 
 ## Create a live audience
@@ -192,7 +192,7 @@ curl -X POST "$GOMOBILE_API_BASE_URL/audience" \
 
 After creating a live audience, use `GET /audience/:id` or `GET /audience/:id/contacts` to confirm membership. The create response currently reports `contactCount: 0` even when the initial evaluation finds matching contacts.
 
-Side effect: evaluates organization contacts and manages memberships automatically. When a live audience drives an active campaign, contacts that begin matching can be enrolled into real campaign activity.
+Side effect: evaluates organization contacts and manages memberships automatically. Contact changes, imports or bulk upserts, and live-rule edits can create new live-audience entry events. Active campaigns using the audience can turn those events into additional executions, including when a contact exits and re-enters. Already-matching active membership is not itself a new entry. Paused campaigns ignore entry events; resume does not automatically replay missed entries. Verify actual executions and outcomes rather than promising event recovery, one send per contact, or delivery.
 
 ## Add contacts to a static audience
 

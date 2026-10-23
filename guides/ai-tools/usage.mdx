@@ -1,0 +1,116 @@
+---
+title: "Prepare workflows with Gomobile"
+description: "Use one Gomobile skill for documentation questions, workflow preparation, and analysis of supplied reports."
+icon: "message-square"
+---
+
+After [installation](/guides/ai-tools/installation), use the same skill for each task. These prompts use Codex's `$gomobile:gomobile` syntax. In Claude Code, replace `Use $gomobile:gomobile` with `/gomobile:gomobile`.
+
+## Understand flows
+
+Understand the flow types before choosing one for your workflow.
+
+```text
+Use $gomobile:gomobile to explain how Voice and Multichannel flows differ.
+Include channel requirements and links to the Gomobile documentation.
+Identify whether you read public pages, bundled notes, or text I supplied.
+```
+
+Expect an explanation of how Voice flows guide a call and how Multichannel flows can combine conditions, messaging, contact changes, and a Voice sub-flow.
+
+See [Build your first flow](/getting-started/build-first-flow).
+
+## Prepare contacts and a live audience
+
+Prepare an import mapping and an audience for Casablanca contacts whose `customer_tier` attribute equals `test`.
+
+```text
+Use $gomobile:gomobile to prepare an import mapping for these synthetic
+columns: primaryPhone, city, customer_tier.
+The custom attribute's returned name is customer_tier and its type is text.
+
+Then draft live-audience rules for city equals Casablanca AND customer_tier
+equals test. List missing information and the steps to verify the import
+and audience. Do not import contacts, preview matches, or apply changes.
+```
+
+Expect column mappings, checks for duplicate and existing contacts, audience rules, and verification steps. The assistant should label the configuration as a draft that has not been applied. A mapping alone does not mean contacts have been imported or counted.
+
+Contact or rule changes can affect live-audience membership. Before applying them, review any campaigns that use the audience.
+
+Audience-preview results can include contact records. If you only need help with the count, share the count without those records.
+
+See [Import contacts](/getting-started/import-contacts) and [Create an audience](/quickstarts/create-audience).
+
+## Plan a WhatsApp campaign
+
+Prepare an appointment-reminder campaign using WhatsApp.
+
+```text
+Use $gomobile:gomobile to plan an appointment-reminder campaign using WhatsApp.
+
+List the required contact attributes, template variables, audience settings,
+schedule, and channel prerequisites. Identify missing information.
+Prepare a plan only; do not create, test, or launch resources.
+```
+
+Expect a campaign plan showing which contact values fill each template variable, what is missing, and what to check before launch. A WhatsApp campaign uses a Multichannel flow.
+
+See [Appointment reminders](/guides/appointment-reminders), [WhatsApp](/learn/concepts/whatsapp), and [Launch your first campaign](/getting-started/launch-first-campaign).
+
+<Warning>
+  Testing a flow can send real messages, place calls, change data, and consume credits, including when `test: true` is used. Review the recipient, content, and channel resources before confirming a test in Gomobile.
+</Warning>
+
+## Prepare an agent and its knowledge sources
+
+Draft a customer-support agent and a plan for the documents it needs.
+
+```text
+Use $gomobile:gomobile to draft instructions for an AI voice agent that answers
+questions from an approved product FAQ. We have not supplied provider options,
+agent or knowledge-base IDs, documents, or phone-number bindings.
+
+Prepare the instructions, missing information, and knowledge-readiness checks.
+Do not create, upload, test, publish, or change anything.
+```
+
+Expect draft agent instructions, a checklist of source documents, and checks to confirm that documents have finished processing and the agent configuration has been saved. The plan should also identify what to review before testing the agent or making it available for incoming calls. An accepted upload does not mean the document is ready to use.
+
+See [Build an AI voice agent](/quickstarts/ai-voice-agent) and [Knowledge Bases API](/developers/reference/knowledge-bases).
+
+## Investigate a run
+
+Understand what a report shows and what to check next.
+
+```text
+Use $gomobile:gomobile to explain this sanitized partial report:
+execution.status is completed; leg is null; children is an empty list;
+messages is an empty list.
+
+Does this prove that the customer answered a call or received a message?
+Identify the evidence still needed. Do not query the account or replay the run.
+```
+
+A completed run does not by itself prove that a customer answered a call or received a message. The assistant should explain what the supplied report establishes and identify the additional evidence needed.
+
+For an error, include the HTTP status, top-level `code`, relevant field errors, and a sanitized description of the attempted operation.
+
+See [Runs and calls](/developers/reference/runs-and-calls) and [Errors](/developers/errors).
+
+## Continue from a plan to results
+
+Keep your plan and later report analysis in the same conversation so the assistant can refer to earlier decisions.
+
+```text
+Use $gomobile:gomobile to help me prepare a WhatsApp appointment-reminder
+campaign. Start with the audience and required attributes, then continue to
+the flow and campaign plan. Carry forward known decisions and missing information.
+
+Do not execute any account operation. Later, when I supply a sanitized report,
+help me check whether it relates to this plan and explain what it establishes.
+```
+
+Expect the assistant to build on earlier decisions and distinguish planned settings from work completed in Gomobile. When you reach the reporting stage, it should ask you to share a report. If you start a new conversation, provide the earlier draft and relevant decisions again.
+
+See [Campaign lifecycle](/product/campaign-lifecycle) and [Reporting](/learn/concepts/reporting).

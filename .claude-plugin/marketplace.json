@@ -1,0 +1,12 @@
+{
+  "name": "gomobile",
+  "description": "One Gomobile skill for documentation, workflow preparation, and supplied reports.",
+  "owner": { "name": "Gomobile" },
+  "plugins": [
+    {
+      "name": "gomobile",
+      "source": "./plugins/gomobile",
+      "description": "Understand Gomobile, prepare customer workflows, and explain supplied reports. Guidance only."
+    }
+  ]
+}

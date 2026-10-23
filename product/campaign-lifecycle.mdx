@@ -15,10 +15,12 @@ Prepare and review the audience, flow, schedule, calling hours, phone numbers, r
 | Audience type | Campaign behavior |
 | --- | --- |
 | Static | The campaign starts from a snapshot of the audience membership used for the launch. Later manual membership changes do not redefine that original snapshot. |
-| Live | Contacts can continue enrolling while the campaign is running when they begin matching the audience rules. |
+| Live | While active, new audience-entry events can create additional executions, including exit/re-entry. Reevaluating an already-matching active membership is not itself another entry. |
+
+Initial enrollment uses the audience's current members when the campaign actually activates; a future scheduled campaign has not performed that enrollment yet. Entry events received while paused are not admitted, and resume does not automatically catch up missed entries. Static membership edits after launch do not imply the same live-entry admission path. Verify actual execution records rather than inferring enrollment or delivery from membership alone.
 
 <Warning>
-  Check live-audience rules before launch. A later contact-data change can make another contact eligible for a running campaign and produce real channel activity.
+  Check live-audience rules before launch. A later contact-data or rule change can create an entry event for an active campaign and lead to real channel activity. Exit/re-entry can admit a contact again; do not assume one send per contact.
 </Warning>
 
 ## Lifecycle actions
@@ -27,8 +29,8 @@ Prepare and review the audience, flow, schedule, calling hours, phone numbers, r
 | --- | --- |
 | Save as draft | Stores the configuration without starting campaign activity. |
 | Launch or schedule | Makes the campaign eligible to start at its configured time and within its calling policy. |
-| Pause | Prevents new campaign work from starting. Work or retries already scheduled may still proceed depending on timing. |
-| Resume | Allows an eligible paused campaign to start new work again. |
+| Pause | Holds pending work, including queued retries. Work already picked up or running can continue. |
+| Resume | Makes held work eligible again, subject to hours, deadlines, and campaign checks. It does not replay missed audience-entry events. |
 | Stop | Cancels pending campaign work. Calls already in progress may finish. |
 
 The interface exposes only actions valid for the campaign's current state. Verify the status after each operation instead of assuming every queued or in-flight item changed immediately.
@@ -43,7 +45,7 @@ Campaigns retain the calling-hours configuration associated with them rather tha
 
 Eligible voice campaigns can schedule additional tries. Keep all retry timing inside the campaign's active period and calling policy. A **try** is an attempt for one enrolled contact; it is not a separate campaign.
 
-Pause and stop are not interchangeable: pausing is reversible, while stopping cancels pending campaign work. Because timing can affect already scheduled work, confirm actual retry behavior in a safe test campaign before using it operationally.
+Pause and stop are not interchangeable: pausing holds pending work, while stopping cancels pending campaign work. Neither undoes activity already performed. Before proposing resume, inspect the pause reason and any unresolved threshold, credit, or elapsed stop-time condition; do not assume every paused campaign can simply resume.
 
 ## Reporting levels
 

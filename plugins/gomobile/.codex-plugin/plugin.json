@@ -1,0 +1,13 @@
+{
+  "name": "gomobile",
+  "version": "0.2.1",
+  "description": "Prepare Gomobile workflows and investigate supplied reports using documented product behavior. No API execution.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Gomobile",
+    "shortDescription": "Prepare workflows and investigate supplied reports",
+    "developerName": "Gomobile",
+    "category": "Productivity",
+    "websiteURL": "https://docs.gomobile.ma"
+  }
+}

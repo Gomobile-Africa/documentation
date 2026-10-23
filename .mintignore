@@ -1,0 +1,8 @@
+# Package sources, build tools, and verification artifacts are not customer pages.
+plugins/
+tests/
+scripts/
+dist/
+.claude-plugin/
+# Historical reviews are internal context, not customer contracts.
+discovery/

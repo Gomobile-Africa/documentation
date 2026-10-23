@@ -24,6 +24,8 @@ Internal tracking only. These decisions remain unresolved; wording cleanup and s
 ## Verification and missing coverage
 
 - Runtime-test onboarding, MFA/recovery, permissions, calls/messages, campaign timing/retries, live enrollment, credits, media/documents, reports/exports, and executable API examples.
+- A supplied read-only product review at `develop` commit `9679b35bd5cd992747f4b6f26b05754d24eda399` traced contact/rule reevaluation, live-entry admission while active, re-entry, ignored paused entries, and the absence of a resume catch-up loop. The skill and linked audience/campaign pages now describe those conditions rather than blanket uncertainty. Confirm intended customer-release parity, deployed event/worker configuration, missed-event recovery, and actual runtime outcomes. Do not run real calls, messages, launches, or credit-consuming tests under the skills documentation task.
+- Confirm public approval/release availability of Auto-pause/resume settings and conditional knowledge-base attachment/retrieval fields before expanding API schema details. The skill references keep these conditional; source presence is not public contract approval.
 - Expand UI guides for contacts/audiences, IVR/DTMF, agents in flows, sub-flows, personalization, transfers/recording, inbound routing, agent/knowledge-base setup, WhatsApp templates, audio/dictionaries, MFA, and report metrics/exports.
 - Complete endpoint-specific schemas, asynchronous result states, business errors, and operational recovery instructions.
 

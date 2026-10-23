@@ -1,0 +1,44 @@
+---
+title: "Use Gomobile with AI tools"
+description: "Use one Gomobile skill in Codex and Claude Code to understand features, prepare workflows, and explain reports."
+icon: "sparkles"
+---
+
+The Gomobile plugin adds one `gomobile` skill to Codex and Claude Code. Use it to understand Gomobile, prepare contact imports and audiences, plan campaigns and AI agents, and explain reports you share.
+
+The plugin provides instructions and reference notes for your assistant. It does not include a connection to your Gomobile account, so no Gomobile API key is required.
+
+## What you can do
+
+Use the same skill for a single question or a longer workflow. Your assistant reads the relevant guidance as the task progresses.
+
+| Task | How the skill helps |
+| --- | --- |
+| Documentation | Find documentation and understand Gomobile features and requirements |
+| Contacts and audiences | Prepare imports, custom attributes, and static or live audience rules |
+| Flows and campaigns | Plan SMS, WhatsApp, Voice, or combined campaigns and review launch requirements |
+| Agents and knowledge bases | Draft agent instructions, plan knowledge sources, and check what must be ready before use |
+| Runs and reports | Explain reports and errors you share and suggest what to check next |
+
+For example, draft a live audience for Casablanca contacts whose `customer_tier` attribute equals `test`, then plan a campaign for that audience. Later, share a sanitized report and ask the same skill to explain it. The report needs to identify the campaign or run before the assistant can relate it to your plan.
+
+This skill prepares drafts and explanations. Apply changes separately in Gomobile after reviewing the proposed settings. Share synthetic examples or sanitized reports, and never include API keys.
+
+## Before you begin
+
+- Install Codex or Claude Code and check that your organization permits plugin installation.
+- To read current documentation, your assistant needs access to a web or documentation-reading tool. If it cannot read the pages, it can use the bundled notes or text you provide. Bundled notes may be older than the published documentation.
+- To analyze results from your account, obtain a report in Gomobile, remove personal or sensitive data, and share the relevant parts with your assistant.
+
+If you are building an integration, see the [Gomobile API documentation](/developers/overview).
+
+## Install and try it
+
+<CardGroup cols={2}>
+  <Card title="Install for Codex or Claude Code" icon="download" href="/guides/ai-tools/installation">
+    Set up the plugin and its single Gomobile skill.
+  </Card>
+  <Card title="Try a workflow" icon="message-square" href="/guides/ai-tools/usage">
+    Copy a prompt or continue from preparation to report analysis.
+  </Card>
+</CardGroup>
